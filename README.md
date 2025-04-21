@@ -1,4 +1,4 @@
-# Conf-ucius - Configuration Management Library in Rust
+# confucius - Configuration Management Library in Rust
 
 ```
     ______            ____             _           
