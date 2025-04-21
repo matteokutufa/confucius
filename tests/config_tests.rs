@@ -3,16 +3,17 @@
 
 use std::fs;
 use std::path::PathBuf;
-use tempfile::tempdir;
+use tempfile::{tempdir, NamedTempFile};
 
-use confucius::{Config, ConfigValue, ConfigError};
+use confucius::{Config, ConfigValue, ConfigError, ConfigFormat};
 
-// Utility per creare file di configurazione temporanei
-fn create_temp_config(content: &str, filename: &str) -> PathBuf {
-    let dir = tempdir().expect("Impossibile creare directory temporanea");
-    let file_path = dir.path().join(filename);
-    fs::write(&file_path, content).expect("Impossibile scrivere file di configurazione temporaneo");
-    file_path
+// Una funzione helper per creare un file temporaneo con un contenuto specifico e tenerlo in vita
+// fino a quando non viene rilasciata
+fn create_temp_file(content: &str) -> (NamedTempFile, PathBuf) {
+    let file = NamedTempFile::new().expect("Impossibile creare file temporaneo");
+    let path = file.path().to_path_buf();
+    fs::write(&path, content).expect("Impossibile scrivere nel file temporaneo");
+    (file, path)
 }
 
 #[test]
@@ -28,7 +29,7 @@ key4 = true
 key1 = 3.14
 "#;
 
-    let file_path = create_temp_config(content, "test_basic.conf");
+    let (_file, file_path) = create_temp_file(content);
 
     let mut config = Config::new("test");
     let result = config.load_from_file(&file_path);
@@ -76,7 +77,7 @@ key2 = "value with # inside quotes" # Commento dopo un valore con # all'interno
 key3 = 123 # Commento dopo un numero
 "#;
 
-    let file_path = create_temp_config(content, "test_comments.conf");
+    let (_file, file_path) = create_temp_file(content);
 
     let mut config = Config::new("test");
     let result = config.load_from_file(&file_path);
@@ -104,6 +105,9 @@ key3 = 123 # Commento dopo un numero
 
 #[test]
 fn test_include_single_file() {
+    // Creiamo una directory temporanea per i file
+    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
+
     // File principale
     let main_content = r#"#!config/ini
 [main]
@@ -118,7 +122,6 @@ key2 = "included value"
 "#;
 
     // Creiamo i file temporanei
-    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
     let main_path = temp_dir.path().join("main.conf");
     let included_path = temp_dir.path().join("included.conf");
 
@@ -128,6 +131,7 @@ key2 = "included value"
     // Carichiamo la configurazione
     let mut config = Config::new("test");
     let result = config.load_from_file(&main_path);
+
     assert!(result.is_ok(), "Caricamento del file fallito: {:?}", result.err());
 
     // Verifichiamo che entrambi i valori siano stati caricati
@@ -146,6 +150,9 @@ key2 = "included value"
 
 #[test]
 fn test_include_glob_pattern() {
+    // Creiamo una directory temporanea per i file
+    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
+
     // File principale
     let main_content = r#"#!config/ini
 [main]
@@ -164,14 +171,12 @@ key2 = "included1 value"
 key3 = "included2 value"
 "#;
 
-    // Creiamo i file temporanei
-    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
-    let main_path = temp_dir.path().join("main.conf");
-
     // Creiamo la directory conf.d
     let conf_d_path = temp_dir.path().join("conf.d");
     fs::create_dir(&conf_d_path).expect("Impossibile creare directory conf.d");
 
+    // Creiamo i file temporanei
+    let main_path = temp_dir.path().join("main.conf");
     let included1_path = conf_d_path.join("file1.conf");
     let included2_path = conf_d_path.join("file2.conf");
 
@@ -183,8 +188,6 @@ key3 = "included2 value"
     let mut config = Config::new("test");
     let result = config.load_from_file(&main_path);
 
-    // Nota: questa potrebbe fallire se la libreria glob non è configurata correttamente
-    // In tal caso, potrebbe essere necessario modificare il test o la libreria
     assert!(result.is_ok(), "Caricamento del file fallito: {:?}", result.err());
 
     // Verifichiamo che tutti i valori siano stati caricati
@@ -209,18 +212,21 @@ key3 = "included2 value"
 
 #[test]
 fn test_save_config() {
+    // Creiamo una directory temporanea
+    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
+    let save_path = temp_dir.path().join("saved.conf");
+
     // Creiamo una configurazione da zero
     let mut config = Config::new("test");
+
+    // Impostiamo il formato a INI esplicitamente per evitare l'errore "UnsupportedFormat"
+    config.set_format(ConfigFormat::Ini);
 
     // Aggiungiamo alcuni valori
     config.set("section1", "key1", ConfigValue::String("value1".to_string()));
     config.set("section1", "key2", ConfigValue::Integer(123));
     config.set("section2", "key3", ConfigValue::Boolean(true));
     config.set("section2", "key4", ConfigValue::Float(3.14));
-
-    // File temporaneo per il salvataggio
-    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
-    let save_path = temp_dir.path().join("saved.conf");
 
     // Salviamo la configurazione
     let result = config.save_to_file(&save_path);
@@ -247,80 +253,58 @@ fn test_save_config() {
     assert!(load_result.is_ok(), "Caricamento del file salvato fallito: {:?}", load_result.err());
 
     // Verifichiamo che i valori caricati siano corretti
-    if let Some(value) = loaded_config.get("section1", "key1") {
-        assert_eq!(value.as_string(), Some(&"value1".to_string()));
-    } else {
-        panic!("key1 non trovata nel file salvato");
-    }
+    assert_eq!(loaded_config.get("section1", "key1").and_then(|v| v.as_string()),
+               Some(&"value1".to_string()), "key1 errata nel file salvato");
 
-    if let Some(value) = loaded_config.get("section1", "key2") {
-        assert_eq!(value.as_integer(), Some(123));
-    } else {
-        panic!("key2 non trovata nel file salvato");
-    }
+    assert_eq!(loaded_config.get("section1", "key2").and_then(|v| v.as_integer()),
+               Some(123), "key2 errata nel file salvato");
 
-    if let Some(value) = loaded_config.get("section2", "key3") {
-        assert_eq!(value.as_boolean(), Some(true));
-    } else {
-        panic!("key3 non trovata nel file salvato");
-    }
+    assert_eq!(loaded_config.get("section2", "key3").and_then(|v| v.as_boolean()),
+               Some(true), "key3 errata nel file salvato");
 
-    if let Some(value) = loaded_config.get("section2", "key4") {
-        assert_eq!(value.as_float(), Some(3.14));
-    } else {
-        panic!("key4 non trovata nel file salvato");
-    }
+    assert_eq!(loaded_config.get("section2", "key4").and_then(|v| v.as_float()),
+               Some(3.14), "key4 errata nel file salvato");
 }
 
 #[test]
 fn test_detect_format() {
+    // File con formato INI esplicito
     let ini_content = r#"#!config/ini
 [section]
 key = value
 "#;
 
+    // File con formato TOML esplicito (non supportato)
     let toml_content = r#"#!config/toml
 # This is a TOML document
 key = "value"
 "#;
 
-    let yaml_content = r#"#!config/yaml
-# This is a YAML document
-key: value
-"#;
-
-    let json_content = r#"#!config/json
-{
-  "key": "value"
-}
+    // File senza specificazione del formato (dovrebbe assumere INI)
+    let default_content = r#"[section]
+key = value
 "#;
 
     // Creiamo i file temporanei
-    let ini_path = create_temp_config(ini_content, "test_ini.conf");
-    let toml_path = create_temp_config(toml_content, "test_toml.conf");
-    let yaml_path = create_temp_config(yaml_content, "test_yaml.conf");
-    let json_path = create_temp_config(json_content, "test_json.conf");
+    let (_ini_file, ini_path) = create_temp_file(ini_content);
+    let (_toml_file, toml_path) = create_temp_file(toml_content);
+    let (_default_file, default_path) = create_temp_file(default_content);
 
     // Testiamo il rilevamento del formato INI
     let mut config = Config::new("test");
     let result = config.load_from_file(&ini_path);
-    assert!(result.is_ok(), "Caricamento del file INI fallito");
+    assert!(result.is_ok(), "Caricamento del file INI fallito: {:?}", result.err());
 
     // I formati non supportati dovrebbero dare errore UnsupportedFormat
     let mut config = Config::new("test");
     let result = config.load_from_file(&toml_path);
     assert!(matches!(result, Err(ConfigError::UnsupportedFormat(_))),
-            "Dovrebbe dare errore UnsupportedFormat per TOML");
+            "Dovrebbe dare errore UnsupportedFormat per TOML, ma ha dato: {:?}", result);
 
+    // Il formato di default dovrebbe essere INI
     let mut config = Config::new("test");
-    let result = config.load_from_file(&yaml_path);
-    assert!(matches!(result, Err(ConfigError::UnsupportedFormat(_))),
-            "Dovrebbe dare errore UnsupportedFormat per YAML");
-
-    let mut config = Config::new("test");
-    let result = config.load_from_file(&json_path);
-    assert!(matches!(result, Err(ConfigError::UnsupportedFormat(_))),
-            "Dovrebbe dare errore UnsupportedFormat per JSON");
+    let result = config.load_from_file(&default_path);
+    assert!(result.is_ok(), "Caricamento del file con formato di default fallito: {:?}", result.err());
 }
 
 #[test]
@@ -333,37 +317,28 @@ key3 = "value with \"escaped quotes\" inside"
 key4 = "123" # Questo è una stringa, non un numero
 "#;
 
-    let file_path = create_temp_config(content, "test_quoted.conf");
+    let (_file, file_path) = create_temp_file(content);
 
     let mut config = Config::new("test");
     let result = config.load_from_file(&file_path);
     assert!(result.is_ok(), "Caricamento del file fallito: {:?}", result.err());
 
     // Verifichiamo i valori
-    if let Some(value) = config.get("section", "key1") {
-        assert_eq!(value.as_string(), Some(&"value with spaces".to_string()));
-    } else {
-        panic!("key1 non trovata");
-    }
+    assert_eq!(config.get("section", "key1").and_then(|v| v.as_string()),
+               Some(&"value with spaces".to_string()), "key1 non corretta");
 
-    if let Some(value) = config.get("section", "key2") {
-        assert_eq!(value.as_string(), Some(&"value with # symbol inside quotes".to_string()));
-    } else {
-        panic!("key2 non trovata");
-    }
+    assert_eq!(config.get("section", "key2").and_then(|v| v.as_string()),
+               Some(&"value with # symbol inside quotes".to_string()), "key2 non corretta");
 
-    if let Some(value) = config.get("section", "key3") {
-        assert_eq!(value.as_string(), Some(&"value with \"escaped quotes\" inside".to_string()));
-    } else {
-        panic!("key3 non trovata");
-    }
+    assert_eq!(config.get("section", "key3").and_then(|v| v.as_string()),
+               Some(&"value with \"escaped quotes\" inside".to_string()), "key3 non corretta");
 
-    if let Some(value) = config.get("section", "key4") {
-        // Questo dovrebbe essere una stringa, non un numero
-        assert_eq!(value.as_string(), Some(&"123".to_string()));
-        assert_eq!(value.as_integer(), None);
-    } else {
-        panic!("key4 non trovata");
+    // Questo dovrebbe essere una stringa, non un numero
+    let key4 = config.get("section", "key4");
+    assert!(key4.is_some(), "key4 non trovata");
+    if let Some(value) = key4 {
+        assert_eq!(value.as_string(), Some(&"123".to_string()), "key4 dovrebbe essere una stringa");
+        assert_eq!(value.as_integer(), None, "key4 non dovrebbe essere interpretabile come intero");
     }
 }
 

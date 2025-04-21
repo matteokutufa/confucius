@@ -15,11 +15,9 @@
 
 use std::collections::HashMap;
 use std::env;
-/// use std::error::Error;
 use std::fmt;
 use std::fs;
-/// use std::io::{self, BufRead, BufReader};
-use std::io::{self};
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -27,7 +25,6 @@ mod parser;
 mod formats;
 mod include;
 mod utils;
-
 
 /// Tipi di formato supportati per i file di configurazione
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,6 +157,18 @@ impl Config {
             config_file_path: None,
         }
     }
+
+    /// Imposta esplicitamente il formato della configurazione
+    pub fn set_format(&mut self, format: ConfigFormat) -> &mut Self {
+        self.format = format;
+        self
+    }
+
+    /// Ottiene il formato corrente della configurazione
+    pub fn get_format(&self) -> ConfigFormat {
+        self.format
+    }
+
 
     /// Carica la configurazione dai percorsi predefiniti
     pub fn load(&mut self) -> Result<(), ConfigError> {

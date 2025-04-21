@@ -53,7 +53,28 @@ pub fn is_quoted(s: &str) -> bool {
 /// Rimuove le virgolette doppie da una stringa
 pub fn unquote(s: &str) -> String {
     if is_quoted(s) {
-        s[1..s.len()-1].to_string()
+        // Prendiamo la stringa senza le virgolette iniziali e finali
+        let content = &s[1..s.len()-1];
+
+        // Gestiamo gli escape sostituendo \" con "
+        let mut result = String::with_capacity(content.len());
+        let mut chars = content.chars().peekable();
+        let mut in_escape = false;
+
+        while let Some(c) = chars.next() {
+            if in_escape {
+                // Se siamo in un escape, includiamo il carattere così com'è
+                result.push(c);
+                in_escape = false;
+            } else if c == '\\' && chars.peek() == Some(&'"') {
+                // Se troviamo un backslash seguito da virgolette, lo trattiamo come escape
+                in_escape = true;
+            } else {
+                result.push(c);
+            }
+        }
+
+        result
     } else {
         s.to_string()
     }
