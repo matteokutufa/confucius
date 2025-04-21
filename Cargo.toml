@@ -7,6 +7,8 @@ description = "A Rust library that simplifies configuration file management for 
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/matteokutufa/confucius"
+keywords = ["configuration", "ini", "toml", "yaml", "json"]
+categories = ["config", "parser-implementations"]
 
 [dependencies]
 thiserror = "2.0.12"
@@ -14,5 +16,17 @@ glob = "0.3.0"
 regex = "1.11.1"
 home = "0.5.11"
 path-clean = "1.0.1"
+
+
+[dev-dependencies]
+tempfile = "3.3"      # Per i test con file temporanei
+criterion = "0.4"     # Per i benchmark
+
+[[bench]]
+name = "criterion_bench"
+harness = false
+
+
+
 
 
