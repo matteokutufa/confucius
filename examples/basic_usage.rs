@@ -1,10 +1,10 @@
 // examples/basic_usage.rs
-//! Esempio di utilizzo base della libreria confman
+//! Esempio di utilizzo base della libreria confucius
 
 use std::env;
 use std::fs;
 use std::path::Path;
-use confman::{Config, ConfigValue};
+use confucius::{Config, ConfigValue};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Crea una configurazione per un'app chiamata "myapp"
