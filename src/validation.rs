@@ -2,6 +2,7 @@
 //! Modulo per la validazione delle configurazioni
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use regex::Regex;
 
 use crate::{Config, ConfigError, ConfigValue};
@@ -123,8 +124,8 @@ impl FieldDefinition {
 }
 
 /// Wrapper per funzioni di validazione personalizzate
-#[derive(Clone)]
-pub struct ValidateFn(Box<dyn Fn(&ConfigValue) -> Result<(), String> + Send + Sync>);
+
+pub struct ValidateFn(Arc<dyn Fn(&ConfigValue) -> Result<(), String> + Send + Sync>);
 
 impl ValidateFn {
     /// Crea una nuova funzione di validazione
@@ -132,12 +133,19 @@ impl ValidateFn {
     where
         F: Fn(&ConfigValue) -> Result<(), String> + Send + Sync + 'static
     {
-        ValidateFn(Box::new(f))
+        ValidateFn(Arc::new(f))
     }
 
     /// Esegue la validazione su un valore
     pub fn validate(&self, value: &ConfigValue) -> Result<(), String> {
         (self.0)(value)
+    }
+}
+
+// Ora l'implementazione di Clone è semplice
+impl Clone for ValidateFn {
+    fn clone(&self) -> Self {
+        ValidateFn(Arc::clone(&self.0))
     }
 }
 
