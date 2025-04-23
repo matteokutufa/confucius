@@ -287,6 +287,13 @@ key = "value"
 key: value
 "#;
 
+    // File con formato JSON esplicito
+    let json_content = r#"#!config/json
+{
+  "key": "value"
+}
+"#;
+
     // File senza specificazione del formato con estensione .ini
     let default_ini_content = r#"[section]
 key = value
@@ -300,19 +307,28 @@ key = value
     let default_yaml_content = r#"key: value
 "#;
 
+    // File senza specificazione del formato con estensione .json
+    let default_json_content = r#"{
+  "key": "value"
+}
+"#;
+
     // Creiamo i file temporanei
     let (_ini_file, ini_path) = create_temp_file(ini_content);
     let (_toml_file, toml_path) = create_temp_file(toml_content);
     let (_yaml_file, yaml_path) = create_temp_file(yaml_content);
+    let (_json_file, json_path) = create_temp_file(json_content);
 
     let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
     let default_ini_path = temp_dir.path().join("config.ini");
     let default_toml_path = temp_dir.path().join("config.toml");
     let default_yaml_path = temp_dir.path().join("config.yaml");
+    let default_json_path = temp_dir.path().join("config.json");
 
     fs::write(&default_ini_path, default_ini_content).expect("Impossibile scrivere file INI");
     fs::write(&default_toml_path, default_toml_content).expect("Impossibile scrivere file TOML");
     fs::write(&default_yaml_path, default_yaml_content).expect("Impossibile scrivere file YAML");
+    fs::write(&default_json_path, default_json_content).expect("Impossibile scrivere file JSON");
 
     // Testiamo il rilevamento del formato INI esplicito
     let mut config = Config::new("test");
@@ -329,6 +345,11 @@ key = value
     let result = config.load_from_file(&yaml_path);
     assert!(result.is_ok(), "Caricamento del file YAML esplicito fallito: {:?}", result.err());
 
+    // Testiamo il rilevamento del formato JSON esplicito
+    let mut config = Config::new("test");
+    let result = config.load_from_file(&json_path);
+    assert!(result.is_ok(), "Caricamento del file JSON esplicito fallito: {:?}", result.err());
+
     // Testiamo il rilevamento del formato INI dall'estensione
     let mut config = Config::new("test");
     let result = config.load_from_file(&default_ini_path);
@@ -343,7 +364,13 @@ key = value
     let mut config = Config::new("test");
     let result = config.load_from_file(&default_yaml_path);
     assert!(result.is_ok(), "Caricamento del file YAML dall'estensione fallito: {:?}", result.err());
+
+    // Testiamo il rilevamento del formato JSON dall'estensione
+    let mut config = Config::new("test");
+    let result = config.load_from_file(&default_json_path);
+    assert!(result.is_ok(), "Caricamento del file JSON dall'estensione fallito: {:?}", result.err());
 }
+
 
 #[test]
 fn test_quoted_values() {

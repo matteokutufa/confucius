@@ -19,7 +19,7 @@ pub fn parse_file(config: &mut Config, path: &Path) -> Result<(), ConfigError> {
         ConfigFormat::Ini => formats::ini::parse_ini(config, &content, path),
         ConfigFormat::Toml => formats::toml::parse_toml(config, &content, path),
         ConfigFormat::Yaml => formats::yaml::parse_yaml(config, &content, path),
-        ConfigFormat::Json => Err(ConfigError::UnsupportedFormat("JSON".to_string())),
+        ConfigFormat::Json => formats::json::parse_json(config, &content, path),
         ConfigFormat::Unknown => Err(ConfigError::UnsupportedFormat("Sconosciuto".to_string())),
     }
 }

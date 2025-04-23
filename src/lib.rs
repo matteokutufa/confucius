@@ -21,10 +21,12 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+mod validation;
 mod parser;
 mod formats;
 mod include;
 mod utils;
+
 
 /// Tipi di formato supportati per i file di configurazione
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,7 +204,7 @@ impl Config {
             ConfigFormat::Ini => formats::ini::parse_ini(self, &content, path)?,
             ConfigFormat::Toml => formats::toml::parse_toml(self, &content, path)?,
             ConfigFormat::Yaml => formats::yaml::parse_yaml(self, &content, path)?,
-            ConfigFormat::Json => return Err(ConfigError::UnsupportedFormat("JSON".to_string())),
+            ConfigFormat::Json => formats::json::parse_json(self, &content, path)?,
             ConfigFormat::Unknown => return Err(ConfigError::UnsupportedFormat("Sconosciuto".to_string())),
         }
 
@@ -289,7 +291,7 @@ impl Config {
             ConfigFormat::Ini => formats::ini::write_ini(self, path)?,
             ConfigFormat::Toml => formats::toml::write_toml(self, path)?,
             ConfigFormat::Yaml => formats::yaml::write_yaml(self, path)?,
-            ConfigFormat::Json => return Err(ConfigError::UnsupportedFormat("JSON".to_string())),
+            ConfigFormat::Json => formats::json::write_json(self, path)?,
             ConfigFormat::Unknown => return Err(ConfigError::UnsupportedFormat("Sconosciuto".to_string())),
         }
 
@@ -301,3 +303,5 @@ impl Config {
 pub use formats::ini;
 pub use formats::toml;
 pub use formats::yaml;
+pub use formats::json;
+pub use validation::*;

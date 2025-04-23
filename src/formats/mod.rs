@@ -4,3 +4,4 @@
 pub mod ini;
 pub mod toml;
 pub mod yaml;
+pub mod json;
