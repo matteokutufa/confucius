@@ -1,6 +1,6 @@
 [package]
 name = "confucius"
-version = "0.1.1"
+version = "0.1.2-alpha"
 edition = "2024"
 authors = ["Matteo Kutufa <mk@mitocode.eu>"]
 description = "A Rust library that simplifies configuration file management for applications."
@@ -16,6 +16,8 @@ glob = "0.3.0"
 regex = "1.11.1"
 home = "0.5.11"
 path-clean = "1.0.1"
+toml = "0.8.20"
+serde_yaml = "0.9.34"
 
 
 [dev-dependencies]

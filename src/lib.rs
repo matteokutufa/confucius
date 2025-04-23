@@ -200,8 +200,8 @@ impl Config {
         // Parserizziamo il contenuto in base al formato
         match self.format {
             ConfigFormat::Ini => formats::ini::parse_ini(self, &content, path)?,
-            ConfigFormat::Toml => return Err(ConfigError::UnsupportedFormat("TOML".to_string())),
-            ConfigFormat::Yaml => return Err(ConfigError::UnsupportedFormat("YAML".to_string())),
+            ConfigFormat::Toml => formats::toml::parse_toml(self, &content, path)?,
+            ConfigFormat::Yaml => formats::yaml::parse_yaml(self, &content, path)?,
             ConfigFormat::Json => return Err(ConfigError::UnsupportedFormat("JSON".to_string())),
             ConfigFormat::Unknown => return Err(ConfigError::UnsupportedFormat("Sconosciuto".to_string())),
         }
@@ -287,8 +287,8 @@ impl Config {
     pub fn save_to_file(&self, path: &Path) -> Result<(), ConfigError> {
         match self.format {
             ConfigFormat::Ini => formats::ini::write_ini(self, path)?,
-            ConfigFormat::Toml => return Err(ConfigError::UnsupportedFormat("TOML".to_string())),
-            ConfigFormat::Yaml => return Err(ConfigError::UnsupportedFormat("YAML".to_string())),
+            ConfigFormat::Toml => formats::toml::write_toml(self, path)?,
+            ConfigFormat::Yaml => formats::yaml::write_yaml(self, path)?,
             ConfigFormat::Json => return Err(ConfigError::UnsupportedFormat("JSON".to_string())),
             ConfigFormat::Unknown => return Err(ConfigError::UnsupportedFormat("Sconosciuto".to_string())),
         }
@@ -299,3 +299,5 @@ impl Config {
 
 // Esportiamo i moduli pubblici
 pub use formats::ini;
+pub use formats::toml;
+pub use formats::yaml;

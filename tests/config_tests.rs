@@ -5,7 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::{tempdir, NamedTempFile};
 
-use confucius::{Config, ConfigValue, ConfigError, ConfigFormat};
+//use confucius::{Config, ConfigValue, ConfigError, ConfigFormat};
+use confucius::{Config, ConfigValue, ConfigFormat};
 
 // Una funzione helper per creare un file temporaneo con un contenuto specifico e tenerlo in vita
 // fino a quando non viene rilasciata
@@ -274,37 +275,74 @@ fn test_detect_format() {
 key = value
 "#;
 
-    // File con formato TOML esplicito (non supportato)
+    // File con formato TOML esplicito
     let toml_content = r#"#!config/toml
 # This is a TOML document
 key = "value"
 "#;
 
-    // File senza specificazione del formato (dovrebbe assumere INI)
-    let default_content = r#"[section]
+    // File con formato YAML esplicito
+    let yaml_content = r#"#!config/yaml
+# This is a YAML document
+key: value
+"#;
+
+    // File senza specificazione del formato con estensione .ini
+    let default_ini_content = r#"[section]
 key = value
+"#;
+
+    // File senza specificazione del formato con estensione .toml
+    let default_toml_content = r#"key = "value"
+"#;
+
+    // File senza specificazione del formato con estensione .yaml
+    let default_yaml_content = r#"key: value
 "#;
 
     // Creiamo i file temporanei
     let (_ini_file, ini_path) = create_temp_file(ini_content);
     let (_toml_file, toml_path) = create_temp_file(toml_content);
-    let (_default_file, default_path) = create_temp_file(default_content);
+    let (_yaml_file, yaml_path) = create_temp_file(yaml_content);
 
-    // Testiamo il rilevamento del formato INI
+    let temp_dir = tempdir().expect("Impossibile creare directory temporanea");
+    let default_ini_path = temp_dir.path().join("config.ini");
+    let default_toml_path = temp_dir.path().join("config.toml");
+    let default_yaml_path = temp_dir.path().join("config.yaml");
+
+    fs::write(&default_ini_path, default_ini_content).expect("Impossibile scrivere file INI");
+    fs::write(&default_toml_path, default_toml_content).expect("Impossibile scrivere file TOML");
+    fs::write(&default_yaml_path, default_yaml_content).expect("Impossibile scrivere file YAML");
+
+    // Testiamo il rilevamento del formato INI esplicito
     let mut config = Config::new("test");
     let result = config.load_from_file(&ini_path);
-    assert!(result.is_ok(), "Caricamento del file INI fallito: {:?}", result.err());
+    assert!(result.is_ok(), "Caricamento del file INI esplicito fallito: {:?}", result.err());
 
-    // I formati non supportati dovrebbero dare errore UnsupportedFormat
+    // Testiamo il rilevamento del formato TOML esplicito
     let mut config = Config::new("test");
     let result = config.load_from_file(&toml_path);
-    assert!(matches!(result, Err(ConfigError::UnsupportedFormat(_))),
-            "Dovrebbe dare errore UnsupportedFormat per TOML, ma ha dato: {:?}", result);
+    assert!(result.is_ok(), "Caricamento del file TOML esplicito fallito: {:?}", result.err());
 
-    // Il formato di default dovrebbe essere INI
+    // Testiamo il rilevamento del formato YAML esplicito
     let mut config = Config::new("test");
-    let result = config.load_from_file(&default_path);
-    assert!(result.is_ok(), "Caricamento del file con formato di default fallito: {:?}", result.err());
+    let result = config.load_from_file(&yaml_path);
+    assert!(result.is_ok(), "Caricamento del file YAML esplicito fallito: {:?}", result.err());
+
+    // Testiamo il rilevamento del formato INI dall'estensione
+    let mut config = Config::new("test");
+    let result = config.load_from_file(&default_ini_path);
+    assert!(result.is_ok(), "Caricamento del file INI dall'estensione fallito: {:?}", result.err());
+
+    // Testiamo il rilevamento del formato TOML dall'estensione
+    let mut config = Config::new("test");
+    let result = config.load_from_file(&default_toml_path);
+    assert!(result.is_ok(), "Caricamento del file TOML dall'estensione fallito: {:?}", result.err());
+
+    // Testiamo il rilevamento del formato YAML dall'estensione
+    let mut config = Config::new("test");
+    let result = config.load_from_file(&default_yaml_path);
+    assert!(result.is_ok(), "Caricamento del file YAML dall'estensione fallito: {:?}", result.err());
 }
 
 #[test]
