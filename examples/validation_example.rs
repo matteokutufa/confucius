@@ -2,7 +2,12 @@
 //! Esempio di utilizzo del sistema di validazione
 
 use confucius::{Config, ConfigValue, ConfigFormat};
-use confucius::validation::{ValidationSchema, ValidationExt, FieldDefinition, FieldConstraint, ValueType};
+use confucius::ValidationExt;
+use confucius::FieldConstraint;
+use confucius::ValueType;
+use confucius::ValidationSchema;
+use confucius::FieldDefinition;
+
 use std::path::Path;
 use std::fs::File;
 use std::io::Write;
