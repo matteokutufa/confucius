@@ -42,7 +42,7 @@ Add this dependency to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-confucius = "0.1.1"
+confucius = "0.1.4-beta"
 ```
 
 ## Usage Example
