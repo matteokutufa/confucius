@@ -16,9 +16,9 @@
 
 - **Automatic search** for configuration files in standard paths
 - Support for various **configuration formats**:
-    - INI (implemented)
-    - TOML (planned)
-    - YAML (planned)
+    - INI 
+    - TOML 
+    - YAML 
     - JSON (planned)
 - **Inclusion mechanism** for importing multiple files or with glob patterns
 - **Format identification** via shebang (`#!config/FORMAT`)
@@ -88,20 +88,80 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```ini
 #!config/ini
-# This is a comment
+# Questo è un commento
 
 [app]
 name = "My Application"
 version = "1.0.0"
-debug = true # Inline comment
+debug = true # Commento inline
 
 [server]
 hostname = "localhost"
 port = 8080
 
-# Include other configuration files
+# Inclusione di altri file di configurazione
 include=/etc/myapp/extra.conf
 include=/etc/myapp/conf.d/*.conf
+```
+
+### TOML Format Example
+
+```toml
+#!config/toml
+# Questo è un commento
+
+[app]
+name = "My Application"
+version = "1.0.0"
+debug = true
+
+[server]
+hostname = "localhost"
+port = 8080
+
+# Inclusione di altri file di configurazione
+include = [
+    "/etc/myapp/extra.conf", 
+    "/etc/myapp/conf.d/*.conf"
+]
+
+# Il formato TOML supporta anche array e tabelle nidificate
+[database]
+connections = [
+    { name = "main", host = "localhost", port = 5432 },
+    { name = "replica", host = "replica.example.com", port = 5432 }
+]
+```
+
+### YAML Format Example
+
+```yaml
+#!config/yaml
+# Questo è un commento
+
+app:
+  name: "My Application"
+  version: "1.0.0"
+  debug: true
+
+server:
+  hostname: "localhost"
+  port: 8080
+
+# Inclusione di altri file di configurazione
+include:
+  - /etc/myapp/extra.conf
+  - /etc/myapp/conf.d/*.conf
+
+# Il formato YAML supporta strutture dati complesse
+database:
+  connections:
+    - name: main
+      host: localhost
+      port: 5432
+    - name: replica
+      host: replica.example.com
+      port: 5432
 ```
 
 ## Include Mechanism

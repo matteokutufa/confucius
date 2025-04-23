@@ -1,4 +1,4 @@
-//! Test di base per la libreria Conf-ucius
+//! Test di base per la libreria Confucius
 //! Questi test verificano le funzionalità principali
 
 use std::fs;

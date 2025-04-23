@@ -1,4 +1,4 @@
-//! Test di integrazione per la libreria Conf-ucius
+//! Test di integrazione per la libreria Confucius
 //! Questi test verificano scenari d'uso reali più complessi
 
 use std::env;

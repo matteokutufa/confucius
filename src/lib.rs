@@ -1,9 +1,9 @@
 // src/lib.rs
-//! # Conf-ucius
+//! # Confucius
 //!
 //! > "La costanza è la virtù per cui tutte le altre virtù danno frutto." - Confucio
 //!
-//! Così come Confucio ha fornito saggezza per la vita, Conf-ucius fornisce
+//! Così come Confucio ha fornito saggezza per la vita, Confucius fornisce
 //! saggezza per la configurazione delle tue applicazioni.
 //!
 //! `confucius` è una libreria per la gestione di file di configurazione con supporto per:
