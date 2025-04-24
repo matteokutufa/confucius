@@ -1,6 +1,6 @@
 [package]
 name = "confucius"
-version = "0.1.5-beta"
+version = "0.1.6-beta"
 edition = "2024"
 authors = ["Matteo Kutufa <mk@mitocode.eu>"]
 description = "A Rust library that simplifies configuration file management for applications."
@@ -22,8 +22,8 @@ serde_json = "1.0.140"
 
 
 [dev-dependencies]
-tempfile = "3.3"      # Per i test con file temporanei
-criterion = "0.4"     # Per i benchmark
+tempfile = "3.19.1"      # Per i test con file temporanei
+criterion = "0.5.1"     # Per i benchmark
 
 [[bench]]
 name = "criterion_bench"

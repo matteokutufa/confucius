@@ -21,7 +21,7 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-mod validation;
+pub mod validation;
 mod parser;
 mod formats;
 mod include;
