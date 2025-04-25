@@ -39,7 +39,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-confucius = "0.2.1"
+confucius = "0.2.2"
 ```
 
 ## Basic Usage

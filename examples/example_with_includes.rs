@@ -1,10 +1,9 @@
 // examples/includes_example.rs
 //! Example of using configuration file includes with the confucius library
 
-use confucius::{Config, ConfigValue, ConfigFormat};
+use confucius::Config;
 use std::path::Path;
-use std::fs::{self, File};
-use std::io::Write;
+use std::fs::{self};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Configuration with Includes Example ===\n");

@@ -1,7 +1,6 @@
 // examples/basic_usage.rs
 //! Basic usage example for the confucius library
 
-use std::env;
 use std::fs;
 use std::path::Path;
 use confucius::{Config, ConfigValue};

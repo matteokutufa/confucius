@@ -7,8 +7,6 @@
 
 use std::fs;
 use std::path::Path;
-use std::env;
-use std::io::Write;
 
 use confucius::{Config, ConfigValue, ConfigFormat};
 
@@ -102,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_values = hierarchical_config.get_level_values(ConfigLevel::Environment);
 
     println!("Environment-level configuration contents:");
-    for (section, keys) in &env_values.values {
+    for (section, keys) in env_values.get_values() {
         println!("  [{}]", section);
         for (key, value) in keys {
             println!("  {} = {}", key, value);

@@ -595,8 +595,9 @@ impl Config {
     /// # Examples
     ///
     /// ```rust
-    /// let mut config = Config::new("my_app");
-    /// config.load_from_file(Path::new("/path/to/config.toml")).unwrap();
+    /// // use confucius::Config;
+    /// // let mut config = Config::new("my_app");
+    /// // config.load_from_file(Path::new("/path/to/config.toml")).unwrap();
     /// ```
     pub fn load_from_file(&mut self, path: &Path) -> Result<(), ConfigError> {
         let content = fs::read_to_string(path).map_err(ConfigError::Io)?;
@@ -915,6 +916,34 @@ impl Config {
                 None
             }
         })
+    }
+
+    /// Retrieves all configuration values.
+    ///
+    /// This method provides access to the internal `values` field of the `Config` struct,
+    /// which is a nested `HashMap` containing configuration values organized by section
+    /// and key. The outer `HashMap` maps section names to another `HashMap`, which maps
+    /// key names to their corresponding `ConfigValue`.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the `HashMap` containing all configuration values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    ///
+    /// // let config = Config::new("my_app");
+    /// // let values = config.get_values();
+    /// // for (section, keys) in values {
+    /// //    println!("Section: {}", section);
+    /// //    for (key, value) in keys {
+    /// //        println!("  {}: {}", key, value);
+    /// //    }
+    /// //}
+    /// ```
+    pub fn get_values(&self) -> &HashMap<String, HashMap<String, ConfigValue>> {
+        &self.values
     }
 }
 

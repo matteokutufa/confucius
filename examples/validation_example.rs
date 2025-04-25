@@ -1,7 +1,7 @@
 // examples/validation_example.rs
 //! Example of using the validation system in the confucius library
 
-use confucius::{Config, ConfigValue, ConfigFormat};
+use confucius::{Config, ConfigValue};
 use confucius::ValidationExt;
 use confucius::{
     FieldConstraint,

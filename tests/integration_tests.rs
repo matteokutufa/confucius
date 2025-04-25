@@ -1,9 +1,8 @@
 //! Test di integrazione per la libreria Confucius
 //! Questi test verificano scenari d'uso reali più complessi
 
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::{tempdir, TempDir};
 
 use confucius::{Config, ConfigValue, ConfigError, ConfigFormat};
