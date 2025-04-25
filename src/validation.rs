@@ -821,7 +821,7 @@ pub enum ValidationError {
     ///
     /// # Fields
     /// * `section` - The name of the missing section.
-    #[error("Sezione mancante: {section}")]
+    #[error("Missing section: {section}")]
     MissingSection {
         section: String,
     },
@@ -830,7 +830,7 @@ pub enum ValidationError {
     ///
     /// # Fields
     /// * `section` - The name of the unknown section.
-    #[error("Sezione sconosciuta: {section}")]
+    #[error("Unknown section: {section}")]
     UnknownSection {
         section: String,
     },
@@ -839,7 +839,7 @@ pub enum ValidationError {
     ///
     /// # Fields
     /// * `path` - The path of the missing field.
-    #[error("Campo mancante: {path}")]
+    #[error("Missing field: {path}")]
     MissingField {
         path: String,
     },
@@ -849,7 +849,7 @@ pub enum ValidationError {
     /// # Fields
     /// * `section` - The name of the section containing the unknown key.
     /// * `key` - The name of the unknown key.
-    #[error("Chiave sconosciuta: {section}.{key}")]
+    #[error("Unknown key: {section}.{key}")]
     UnknownKey {
         section: String,
         key: String,
@@ -861,7 +861,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `expected` - The expected value type.
     /// * `actual` - The actual value type.
-    #[error("Tipo non corrispondente per {path}: atteso {expected:?}, trovato {actual:?}")]
+    #[error("Type mismatch for {path}: expected {expected:?}, found {actual:?}")]
     TypeMismatch {
         path: String,
         expected: ValueType,
@@ -874,7 +874,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `min` - The minimum allowed length.
     /// * `actual` - The actual length of the string.
-    #[error("Stringa troppo corta per {path}: lunghezza minima {min}, attuale {actual}")]
+    #[error("String too short for {path}: minimum length {min}, actual {actual}")]
     StringTooShort {
         path: String,
         min: usize,
@@ -887,7 +887,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `max` - The maximum allowed length.
     /// * `actual` - The actual length of the string.
-    #[error("Stringa troppo lunga per {path}: lunghezza massima {max}, attuale {actual}")]
+    #[error("String too long for {path}: maximum length {max}, actual {actual}")]
     StringTooLong {
         path: String,
         max: usize,
@@ -900,7 +900,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `pattern` - The regex pattern.
     /// * `value` - The actual string value.
-    #[error("Pattern non corrispondente per {path}: pattern {pattern}, valore {value}")]
+    #[error("Pattern mismatch for {path}: pattern {pattern}, value {value}")]
     PatternMismatch {
         path: String,
         pattern: String,
@@ -913,7 +913,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `allowed` - The allowed values.
     /// * `actual` - The actual value.
-    #[error("Valore non valido per {path}: consentiti {allowed}, attuale {actual}")]
+    #[error("Invalid value for {path}: allowed values {allowed}, actual {actual}")]
     InvalidValue {
         path: String,
         allowed: String,
@@ -926,7 +926,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `min` - The minimum allowed value.
     /// * `actual` - The actual value.
-    #[error("Intero troppo piccolo per {path}: minimo {min}, attuale {actual}")]
+    #[error("Integer too small for {path}: minimum {min}, actual {actual}")]
     IntegerTooSmall {
         path: String,
         min: i64,
@@ -939,7 +939,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `max` - The maximum allowed value.
     /// * `actual` - The actual value.
-    #[error("Intero troppo grande per {path}: massimo {max}, attuale {actual}")]
+    #[error("Integer too large for {path}: maximum {max}, actual {actual}")]
     IntegerTooLarge {
         path: String,
         max: i64,
@@ -952,7 +952,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `allowed` - The allowed values.
     /// * `actual` - The actual value.
-    #[error("Valore intero non valido per {path}: consentiti {allowed}, attuale {actual}")]
+    #[error("Invalid integer value for {path}: allowed values {allowed}, actual {actual}")]
     InvalidInteger {
         path: String,
         allowed: String,
@@ -965,7 +965,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `min` - The minimum allowed value.
     /// * `actual` - The actual value.
-    #[error("Float troppo piccolo per {path}: minimo {min}, attuale {actual}")]
+    #[error("Float too small for {path}: minimum {min}, actual {actual}")]
     FloatTooSmall {
         path: String,
         min: f64,
@@ -978,7 +978,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `max` - The maximum allowed value.
     /// * `actual` - The actual value.
-    #[error("Float troppo grande per {path}: massimo {max}, attuale {actual}")]
+    #[error("Float too large for {path}: maximum {max}, actual {actual}")]
     FloatTooLarge {
         path: String,
         max: f64,
@@ -991,7 +991,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `min` - The minimum allowed length.
     /// * `actual` - The actual length of the array.
-    #[error("Array troppo corto per {path}: lunghezza minima {min}, attuale {actual}")]
+    #[error("Array too short for {path}: minimum length {min}, actual {actual}")]
     ArrayTooShort {
         path: String,
         min: usize,
@@ -1004,7 +1004,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `max` - The maximum allowed length.
     /// * `actual` - The actual length of the array.
-    #[error("Array troppo lungo per {path}: lunghezza massima {max}, attuale {actual}")]
+    #[error("Array too long for {path}: maximum length {max}, actual {actual}")]
     ArrayTooLong {
         path: String,
         max: usize,
@@ -1017,7 +1017,7 @@ pub enum ValidationError {
     /// * `path` - The path of the field.
     /// * `description` - A description of the constraint.
     /// * `message` - The error message from the custom validation function.
-    #[error("Vincolo personalizzato fallito per {path}: {description} - {message}")]
+    #[error("Custom constraint failed for {path}: {description} - {message}")]
     CustomConstraintFailed {
         path: String,
         description: String,

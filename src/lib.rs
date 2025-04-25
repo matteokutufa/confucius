@@ -20,6 +20,7 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use serde::{Serialize, Deserialize};
 
 pub mod validation;
 mod parser;
@@ -200,6 +201,256 @@ impl ConfigValue {
             Some(*b)
         } else {
             None
+        }
+    }
+}
+
+/// Implements the `Serialize` trait for the `ConfigValue` enum.
+///
+/// This implementation allows `ConfigValue` instances to be serialized
+/// into formats supported by Serde, such as JSON, YAML, or TOML. Each
+/// variant of the `ConfigValue` enum is serialized according to its type.
+///
+/// # Type Parameters
+/// * `S` - The serializer type, which must implement the `serde::Serializer` trait.
+///
+/// # Arguments
+/// * `serializer` - The serializer instance used to serialize the `ConfigValue`.
+///
+/// # Returns
+/// * `Result<S::Ok, S::Error>` - Returns the result of the serialization process,
+///   which is either a success (`S::Ok`) or an error (`S::Error`).
+impl Serialize for ConfigValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            // Serializes a string value.
+            ConfigValue::String(s) => serializer.serialize_str(s),
+
+            // Serializes an integer value.
+            ConfigValue::Integer(i) => serializer.serialize_i64(*i),
+
+            // Serializes a floating-point value.
+            ConfigValue::Float(f) => serializer.serialize_f64(*f),
+
+            // Serializes a boolean value.
+            ConfigValue::Boolean(b) => serializer.serialize_bool(*b),
+
+            // Serializes an array of `ConfigValue` instances.
+            ConfigValue::Array(arr) => {
+                use serde::ser::SerializeSeq;
+                let mut seq = serializer.serialize_seq(Some(arr.len()))?;
+                for item in arr {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            },
+
+            // Serializes a table (map) of string keys to `ConfigValue` instances.
+            ConfigValue::Table(table) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(table.len()))?;
+                for (k, v) in table {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            },
+        }
+    }
+}
+
+/// Implements the `Deserialize` trait for the `ConfigValue` enum.
+///
+/// This implementation allows `ConfigValue` instances to be deserialized
+/// from formats supported by Serde, such as JSON, YAML, or TOML. Each
+/// variant of the `ConfigValue` enum is deserialized according to its type.
+///
+/// # Type Parameters
+/// * `'de` - The lifetime of the data being deserialized.
+///
+/// # Arguments
+/// * `deserializer` - The deserializer instance used to deserialize the `ConfigValue`.
+///
+/// # Returns
+/// * `Result<Self, D::Error>` - Returns the deserialized `ConfigValue` or an error.
+impl<'de> Deserialize<'de> for ConfigValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor, SeqAccess, MapAccess};
+        use std::fmt;
+
+        /// Visitor for deserializing `ConfigValue`.
+        ///
+        /// This struct implements the `Visitor` trait to handle the deserialization
+        /// of various types into the corresponding `ConfigValue` variants.
+        struct ConfigValueVisitor;
+
+        impl<'de> Visitor<'de> for ConfigValueVisitor {
+            type Value = ConfigValue;
+
+            /// Describes the expected input for this visitor.
+            ///
+            /// # Arguments
+            /// * `formatter` - A mutable reference to the formatter.
+            ///
+            /// # Returns
+            /// * `fmt::Result` - The result of the formatting operation.
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string, number, boolean, array, or map")
+            }
+
+            /// Visits a boolean value and converts it to `ConfigValue::Boolean`.
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ConfigValue::Boolean(value))
+            }
+
+            /// Visits a signed integer and converts it to `ConfigValue::Integer`.
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ConfigValue::Integer(value))
+            }
+
+            /// Visits an unsigned integer and converts it to `ConfigValue::Integer` or `ConfigValue::Float`.
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if value <= i64::MAX as u64 {
+                    Ok(ConfigValue::Integer(value as i64))
+                } else {
+                    Ok(ConfigValue::Float(value as f64))
+                }
+            }
+
+            /// Visits a floating-point number and converts it to `ConfigValue::Float`.
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ConfigValue::Float(value))
+            }
+
+            /// Visits a string slice and converts it to `ConfigValue::String`.
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ConfigValue::String(value.to_string()))
+            }
+
+            /// Visits a string and converts it to `ConfigValue::String`.
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ConfigValue::String(value))
+            }
+
+            /// Visits a sequence and converts it to `ConfigValue::Array`.
+            ///
+            /// # Arguments
+            /// * `seq` - The sequence access object.
+            ///
+            /// # Returns
+            /// * `Result<Self::Value, A::Error>` - The deserialized array or an error.
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut values = Vec::new();
+
+                while let Some(value) = seq.next_element()? {
+                    values.push(value);
+                }
+
+                Ok(ConfigValue::Array(values))
+            }
+
+            /// Visits a map and converts it to `ConfigValue::Table`.
+            ///
+            /// # Arguments
+            /// * `map` - The map access object.
+            ///
+            /// # Returns
+            /// * `Result<Self::Value, M::Error>` - The deserialized table or an error.
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut values = HashMap::new();
+
+                while let Some((key, value)) = map.next_entry()? {
+                    values.insert(key, value);
+                }
+
+                Ok(ConfigValue::Table(values))
+            }
+        }
+
+        // Use the visitor to deserialize any type into a `ConfigValue`.
+        deserializer.deserialize_any(ConfigValueVisitor)
+    }
+}
+
+/// Implements the `Display` trait for the `ConfigValue` enum.
+///
+/// This implementation provides a string representation for each variant
+/// of the `ConfigValue` enum. It formats the value as a string, integer,
+/// float, boolean, array, or table, depending on the variant.
+///
+/// # Arguments
+/// * `f` - A mutable reference to the formatter used to write the output.
+///
+/// # Returns
+/// * `fmt::Result` - The result of the formatting operation, which is either
+///   `Ok` if successful or an error if formatting fails.
+impl fmt::Display for ConfigValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            // Formats a string value.
+            ConfigValue::String(s) => write!(f, "{}", s),
+
+            // Formats an integer value.
+            ConfigValue::Integer(i) => write!(f, "{}", i),
+
+            // Formats a floating-point value.
+            ConfigValue::Float(fl) => write!(f, "{}", fl),
+
+            // Formats a boolean value.
+            ConfigValue::Boolean(b) => write!(f, "{}", b),
+
+            // Formats an array of `ConfigValue` instances.
+            ConfigValue::Array(arr) => {
+                write!(f, "[")?;
+                for (i, val) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", val)?;
+                }
+                write!(f, "]")
+            },
+
+            // Formats a table (map) of string keys to `ConfigValue` instances.
+            ConfigValue::Table(map) => {
+                write!(f, "{{")?;
+                for (i, (key, val)) in map.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", key, val)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }
@@ -529,7 +780,160 @@ impl Config {
 
         Ok(())
     }
+
+    /// Retrieves a string value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as a string if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    /// * `default` - An optional default value to return if the key is not found.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<String>` containing the string value if found, or the default value
+    /// if provided, or `None` if the key is not found and no default was provided.
+    pub fn get_string(&self, section: &str, key: &str, default: Option<&str>) -> Option<String> {
+        match self.get(section, key) {
+            Some(value) => value.as_string().map(|s| s.clone()),
+            None => default.map(|s| s.to_string()),
+        }
+    }
+
+    /// Retrieves an integer value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as an integer if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    /// * `default` - An optional default value to return if the key is not found.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<i64>` containing the integer value if found, or the default value
+    /// if provided, or `None` if the key is not found and no default was provided.
+    pub fn get_integer(&self, section: &str, key: &str, default: Option<i64>) -> Option<i64> {
+        match self.get(section, key) {
+            Some(value) => value.as_integer().or(default),
+            None => default,
+        }
+    }
+
+    /// Retrieves a float value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as a float if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    /// * `default` - An optional default value to return if the key is not found.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<f64>` containing the float value if found, or the default value
+    /// if provided, or `None` if the key is not found and no default was provided.
+    pub fn get_float(&self, section: &str, key: &str, default: Option<f64>) -> Option<f64> {
+        match self.get(section, key) {
+            Some(value) => value.as_float().or(default),
+            None => default,
+        }
+    }
+
+    /// Retrieves a boolean value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as a boolean if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    /// * `default` - An optional default value to return if the key is not found.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<bool>` containing the boolean value if found, or the default value
+    /// if provided, or `None` if the key is not found and no default was provided.
+    pub fn get_boolean(&self, section: &str, key: &str, default: Option<bool>) -> Option<bool> {
+        match self.get(section, key) {
+            Some(value) => value.as_boolean().or(default),
+            None => default,
+        }
+    }
+
+    /// Retrieves an array value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as an array if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<&Vec<ConfigValue>>` containing the array value if found, or `None`
+    /// if the key is not found or the value is not an array.
+    pub fn get_array<'a>(&'a self, section: &str, key: &str) -> Option<&'a Vec<ConfigValue>> {
+        self.get(section, key).and_then(|value| {
+            if let ConfigValue::Array(arr) = value {
+                Some(arr)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Retrieves a table value from the configuration.
+    ///
+    /// This method is a convenience wrapper that looks up a configuration value
+    /// by section and key, and returns it as a table if found.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - A string slice representing the section name.
+    /// * `key` - A string slice representing the key name.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<&HashMap<String, ConfigValue>>` containing the table value if found,
+    /// or `None` if the key is not found or the value is not a table.
+    pub fn get_table<'a>(&'a self, section: &str, key: &str) -> Option<&'a HashMap<String, ConfigValue>> {
+        self.get(section, key).and_then(|value| {
+            if let ConfigValue::Table(table) = value {
+                Some(table)
+            } else {
+                None
+            }
+        })
+    }
 }
+
+// Add Default implementation for Config
+impl Default for Config {
+    /// Creates a new `Config` instance with default values.
+    ///
+    /// The default instance has an empty application name, no values, an unknown format,
+    /// and no configuration file path.
+    fn default() -> Self {
+        Config {
+            app_name: String::new(),
+            values: HashMap::new(),
+            format: ConfigFormat::Unknown,
+            config_file_path: None,
+        }
+    }
+}
+
 
 // Esportiamo i moduli pubblici
 pub use formats::ini;

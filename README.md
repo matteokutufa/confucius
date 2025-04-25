@@ -10,24 +10,25 @@
  "Wisdom in configuration" 
 ```
 
-`confucius` is a Rust library that simplifies configuration file management for applications. Designed to be flexible and intuitive, it offers support for various formats and includes advanced features such as file inclusion and automatic configuration file discovery.
+`confucius` is a flexible and powerful Rust library for configuration file management. Just as Confucius provided wisdom for life, `confucius` provides wisdom for configuring your applications.
 
-## Features
+## Key Features
 
-- **Automatic search** for configuration files in standard paths
-- Support for various **configuration formats**:
+- **Automatic configuration discovery** in standard system paths
+- **Multi-format support**:
   - INI
   - TOML
   - YAML
   - JSON
-- **Inclusion mechanism** for importing multiple files or with glob patterns
-- **Format identification** via shebang (`#!config/FORMAT`)
-- Support for **inline comments** (`# comment`)
-- Support for **text values** in double quotes
+- **Configuration includes** to import multiple files or glob patterns
+- **Format auto-detection** via shebang (`#!config/FORMAT`)
+- **Rich validation system** with constraints and default values
+- **Inline comments support** (`# comment`) in configuration files
+- **Quoted text values** support in all formats
 
-## Search Paths
+## How Configuration Discovery Works
 
-The library automatically searches for configuration files in the following paths (in order of priority), where `appname` is the name of the application:
+When creating a `Config` instance with your application name, `confucius` automatically searches for configuration files in these standard paths (in order of priority):
 
 1. `/etc/appname/appname.conf`
 2. `/etc/appname.conf`
@@ -35,6 +36,8 @@ The library automatically searches for configuration files in the following path
 4. `/home/username/.config/appname/appname.conf`
 5. `/home/username/.config/appname.conf`
 6. `<executable_path>/appname.conf`
+
+This provides a consistent behavior across different environments and follows common conventions for configuration files.
 
 ## Installation
 
@@ -45,74 +48,54 @@ Add this dependency to your `Cargo.toml`:
 confucius = "0.1.5-beta"
 ```
 
-## Usage Example
+## Basic Usage
 
 ```rust
 use confucius::{Config, ConfigValue, ConfigFormat};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a configuration for an app called "myapp"
+    // Create a new configuration for an app named "myapp"
     let mut config = Config::new("myapp");
     
-    // Load the configuration from default paths
+    // Load configuration (automatically discovers in standard paths)
     match config.load() {
         Ok(_) => println!("Configuration loaded successfully!"),
         Err(e) => {
             println!("Error loading configuration: {}", e);
-            // Load from a specific path
+            // Or load from a specific path as fallback
             config.load_from_file(Path::new("/path/to/myapp.conf"))?;
         }
     }
     
-    // Read values
+    // Access configuration values
     if let Some(server) = config.get("server", "hostname") {
         if let Some(hostname) = server.as_string() {
-            println!("Server: {}", hostname);
+            println!("Server hostname: {}", hostname);
         }
     }
     
-    // Modify values
+    // Integer values
+    if let Some(port) = config.get("server", "port") {
+        if let Some(port_num) = port.as_integer() {
+            println!("Server port: {}", port_num);
+        }
+    }
+    
+    // Modify configuration values
     config.set("app", "version", ConfigValue::String("1.1.0".to_string()));
     
-    // Save the configuration
+    // Save the configuration back to file
     config.save()?;
+    
+    // Or save to a specific file
+    config.save_to_file(Path::new("/path/to/new/config.conf"))?;
     
     Ok(())
 }
 ```
 
-## Configuration Validation
-
-`confucius` offers a powerful validation system that allows you to verify that the values in your configuration meet certain constraints:
-
-```rust
-use confucius::validation::{ValidationSchema, ValidationExt, FieldDefinition, FieldConstraint, ValueType};
-
-// Create a validation schema
-let mut schema = ValidationSchema::new();
-
-// Define sections and fields
-schema
-    .required_section("server")
-    .field(
-        "server", 
-        "port", 
-        FieldDefinition::new(ValueType::Integer)
-            .required()
-            .constraint(FieldConstraint::integer().min_int(1).max_int(65535))
-    );
-
-// Validate the configuration
-match config.validate(&schema) {
-    Ok(_) => println!("Valid configuration!"),
-    Err(errors) => println!("Errors: {}", errors),
-}
-```
-
-For more details on validation, see the [dedicated section](#configuration-validation-1).
-
-## Examples of Supported Configuration Formats
+## Configuration File Formats
 
 ### INI Format
 
@@ -232,31 +215,36 @@ database:
 }
 ```
 
-## Include Mechanism
+## The Include Mechanism
 
-The library supports the inclusion of other configuration files through the `include` directive:
+One of the most powerful features of `confucius` is the ability to include other configuration files. This allows you to:
+
+1. Split large configurations into manageable pieces
+2. Share common configuration across multiple applications
+3. Override default settings with environment-specific ones
+
+### How to use includes
 
 ```ini
 # Include a single file
 include=/path/to/extra.conf
 
-# Include all files with .conf extension in a directory
+# Include all .conf files in a directory
 include=/path/to/conf.d/*.conf
 ```
 
-## Configuration Validation
+The include mechanism works across all supported formats. When including files:
 
-`confucius` offers a powerful validation system that allows you to define a schema for configuration files and verify that values meet the defined constraints.
+- Paths can be absolute or relative to the including file
+- Glob patterns are supported for including multiple files
+- Included files can have a different format than the parent file
+- Include directives can be nested (files can include other files)
 
-### Features of the Validation System
+## Advanced Configuration Validation
 
-- Definition of required sections and fields
-- Specification of expected data types
-- Custom constraints for each data type
-- Default values that are automatically applied
-- Detailed error messages
+`confucius` offers a powerful validation system that lets you define a schema for your configuration and enforce constraints on values.
 
-### Validation Usage Example
+### Creating a Validation Schema
 
 ```rust
 use confucius::{Config, ConfigValue};
@@ -268,16 +256,17 @@ let mut schema = ValidationSchema::new();
 // Define required sections
 schema.required_section("server");
 
-// Define fields for the "server" section
+// Define fields with constraints
 schema.field(
     "server", 
     "hostname", 
     FieldDefinition::new(ValueType::String)
-        .required()
+        .required()  // This field must exist
         .description("Server hostname")
         .constraint(FieldConstraint::string()
-                    .min_length(3)
-                    .max_length(255))
+            .min_length(3)  // At least 3 characters
+            .max_length(255)  // At most 255 characters
+        )
 );
 
 schema.field(
@@ -286,29 +275,43 @@ schema.field(
     FieldDefinition::new(ValueType::Integer)
         .required()
         .description("Server port")
+        .default(ConfigValue::Integer(8080))  // Default value if not specified
         .constraint(FieldConstraint::integer()
-                    .min_int(1)
-                    .max_int(65535))
+            .min_int(1)
+            .max_int(65535)
+        )
 );
 
-// Load the configuration
-let mut config = Config::new("myapp");
-config.load()?;
+// Optional field with allowed values constraint
+schema.field(
+    "server",
+    "mode",
+    FieldDefinition::new(ValueType::String)
+        .description("Server operation mode")
+        .constraint(FieldConstraint::string()
+            .allowed_string_values(vec!["development", "testing", "production"])
+        )
+);
+```
 
-// Apply default values defined in the schema
+### Using the Validation Schema
+
+```rust
+// Validate configuration against schema
+match config.validate(&schema) {
+    Ok(_) => println!("Configuration is valid!"),
+    Err(errors) => {
+        println!("Validation errors:");
+        println!("{}", errors);
+        return Err(errors.into());
+    }
+};
+
+// Apply default values from schema
 config.apply_defaults(&schema);
 
-// Validate the configuration
-match config.validate(&schema) {
-    Ok(_) => println!("The configuration is valid!"),
-    Err(errors) => println!("Validation errors: {}", errors),
-}
-
-// Alternatively, we can do both operations in a single call
-match config.validate_and_apply_defaults(&schema) {
-    Ok(_) => println!("The configuration is valid!"),
-    Err(errors) => println!("Validation errors: {}", errors),
-}
+// Or do both in one operation
+config.validate_and_apply_defaults(&schema)?;
 ```
 
 ### Available Constraint Types
@@ -354,23 +357,80 @@ FieldConstraint::array()
 
 #### Custom Constraints
 
+You can define custom validation logic for more complex scenarios:
+
 ```rust
 FieldConstraint::custom(
     |value| {
         // Custom validation function
-        // Returns Ok(()) if the value is valid, Err(String) otherwise
+        // For example, validating that a string is a valid hostname
+        if let ConfigValue::String(s) = value {
+            if s.contains(":") {
+                return Err(format!("Hostname should not contain colon: {}", s));
+            }
+        }
         Ok(())
     },
-    "Constraint description"
+    "Hostname validation"  // Description for error messages
 )
 ```
 
-## Future Development
+## Type Conversion
 
-- Support for overriding through environment variables
-- Hot-reload functionality to reload configuration when it changes
-- Performance improvements with serialization support using serde
-- Addition of custom formatting options for file writing
+`confucius` provides convenient methods to convert configuration values to their appropriate Rust types:
+
+```rust
+// Convert to string
+if let Some(name) = config.get("app", "name") {
+    if let Some(name_str) = name.as_string() {
+        println!("App name: {}", name_str);
+    }
+}
+
+// Convert to integer
+if let Some(port) = config.get("server", "port") {
+    if let Some(port_num) = port.as_integer() {
+        println!("Port: {}", port_num);
+    }
+}
+
+// Convert to float
+if let Some(timeout) = config.get("server", "timeout") {
+    if let Some(timeout_val) = timeout.as_float() {
+        println!("Timeout: {} seconds", timeout_val);
+    }
+}
+
+// Convert to boolean
+if let Some(debug) = config.get("app", "debug") {
+    if let Some(debug_val) = debug.as_boolean() {
+        if debug_val {
+            println!("Debug mode is enabled");
+        }
+    }
+}
+```
+
+## Roadmap
+
+Future development plans for `confucius` include:
+
+- **Environment variable override** - Allow overriding configuration values through environment variables
+- **Hot-reload functionality** - Automatically reload configuration when files change on disk
+- **Performance optimizations** - Improved serialization/deserialization with serde
+- **Custom formatters** - Add options for customizing the formatting of saved configuration files
+- **Schema-based documentation** - Generate documentation for your configuration based on schema definitions
+- **Configuration layering** - More sophisticated layering of configuration from multiple sources
+
+## Contributing
+
+Contributions to `confucius` are welcome! Areas that could use help include:
+
+- Additional format support
+- Performance improvements
+- Documentation enhancements
+- Example applications
+- Testing on different platforms
 
 ## License
 

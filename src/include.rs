@@ -84,12 +84,15 @@ fn include_content(config: &mut Config, content: &str, path: &Path) -> Result<()
     // Parse the content based on the format
     match format {
         ConfigFormat::Ini => formats::ini::parse_ini(config, content, path)?,
-        ConfigFormat::Toml => return Err(ConfigError::UnsupportedFormat("TOML".to_string())),
-        ConfigFormat::Yaml => return Err(ConfigError::UnsupportedFormat("YAML".to_string())),
-        ConfigFormat::Json => return Err(ConfigError::UnsupportedFormat("JSON".to_string())),
+        ConfigFormat::Toml => formats::toml::parse_toml(config, content, path)?,
+        ConfigFormat::Yaml => formats::yaml::parse_yaml(config, content, path)?,
+        ConfigFormat::Json => formats::json::parse_json(config, content, path)?,
         ConfigFormat::Unknown => {
-            // If the format is unknown, assume INI
-            formats::ini::parse_ini(config, content, path)?
+            return Err(ConfigError::IncludeError(format!(
+                // Cast the error for unknown config format file
+                "Unknown configuration format for file: {}",
+                path.display()
+            )));
         }
     }
 
@@ -118,7 +121,7 @@ fn detect_format_from_content(content: &str) -> ConfigFormat {
         let format_str = first_line.trim_start_matches("#!config/").trim();
         ConfigFormat::from(format_str)
     } else {
-        // If not specified, assume INI
-        ConfigFormat::Ini
+        // If not specified or unknown, return error
+        return ConfigFormat::Unknown;
     }
 }

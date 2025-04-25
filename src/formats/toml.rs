@@ -33,7 +33,7 @@ pub fn parse_toml(config: &mut Config, content: &str, path: &Path) -> Result<(),
     };
 
     let parsed_toml: TomlTable = content_to_parse.parse()
-        .map_err(|e| ConfigError::ParseError(format!("Errore nel parsing TOML: {}", e)))?;
+        .map_err(|e| ConfigError::ParseError(format!("Error in TOML parsing: {}", e)))?;
 
     if let Some(include_value) = parsed_toml.get("include") {
         process_includes(config, include_value, path)?;
@@ -122,14 +122,14 @@ fn process_includes(config: &mut Config, include_value: &TomlValue, base_path: &
                     process_single_include(config, include_path, base_path)?;
                 } else {
                     return Err(ConfigError::IncludeError(
-                        "Le inclusioni devono essere stringhe".to_string()
+                        "Includes must be strings".to_string()
                     ));
                 }
             }
         },
         _ => {
             return Err(ConfigError::IncludeError(
-                "Il formato dell'inclusione non è valido. Deve essere una stringa o un array di stringhe".to_string()
+                "The inclusion format is invalid. It must be a string or an array of strings".to_string()
             ));
         }
     }
@@ -159,8 +159,7 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
         let resolved_path = utils::resolve_path(base_path, include_path);
         if resolved_path.exists() {
             let content = fs::read_to_string(&resolved_path)
-                .map_err(|e| ConfigError::IncludeError(format!("Errore di lettura del file incluso {}: {}",
-                                                               resolved_path.display(), e)))?;
+                .map_err(|e| ConfigError::IncludeError(format!("Error reading included file {}: {}", resolved_path.display(), e)))?;
 
             let first_line = content.lines().next().unwrap_or("");
             if first_line.starts_with("#!config/toml") {
@@ -184,8 +183,7 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
                 }
             }
         } else {
-            return Err(ConfigError::IncludeError(format!("File incluso non trovato: {}",
-                                                         resolved_path.display())));
+            return Err(ConfigError::IncludeError(format!("Included file not found: {}", resolved_path.display())));
         }
     }
 
@@ -265,7 +263,7 @@ pub fn write_toml(config: &Config, path: &Path) -> Result<(), ConfigError> {
     }
 
     let toml_string = toml::to_string_pretty(&root_table)
-        .map_err(|e| ConfigError::Generic(format!("Errore nella serializzazione TOML: {}", e)))?;
+        .map_err(|e| ConfigError::Generic(format!("Error in TOML serialization: {}", e)))?;
 
     writeln!(file, "{}", toml_string).map_err(ConfigError::Io)?;
 
