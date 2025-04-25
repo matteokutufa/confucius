@@ -17,7 +17,7 @@ Just as Confucius provided wisdom for life, Confucius provides wisdom for config
 
 [![Crates.io](https://img.shields.io/crates/v/confucius.svg)](https://crates.io/crates/confucius)
 [![Documentation](https://docs.rs/confucius/badge.svg)](https://docs.rs/confucius)
-[![Build Status](https://github.com/yourusername/confucius/workflows/build/badge.svg)](https://github.com/yourusername/confucius/actions)
+[![Rust Version](https://img.shields.io/badge/rust-1.50+-blue.svg)](https://www.rust-lang.org/)
 [![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/confucius.svg)](LICENSE)
 
 ## Features
@@ -38,7 +38,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-confucius = "0.2.0"
+confucius = "0.2.1"
 ```
 
 ## Basic Usage
