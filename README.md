@@ -16,8 +16,10 @@
 Just as Confucius provided wisdom for life, Confucius provides wisdom for configuring your applications.
 
 [![Crates.io](https://img.shields.io/crates/v/confucius.svg)](https://crates.io/crates/confucius)
+[![GitHub Actions](https://github.com/matteokutufa/confucius/workflows/Rust/badge.svg)](https://github.com/matteokutufa/confucius/actions)
 [![Documentation](https://docs.rs/confucius/badge.svg)](https://docs.rs/confucius)
 [![Rust Version](https://img.shields.io/badge/rust-1.50+-blue.svg)](https://www.rust-lang.org/)
+[![Crates.io Downloads](https://img.shields.io/crates/d/confucius.svg)](https://crates.io/crates/confucius)
 [![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/confucius.svg)](LICENSE)
 
 
