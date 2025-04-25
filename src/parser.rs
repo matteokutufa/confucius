@@ -1,18 +1,31 @@
-// src/parser.rs
-//! Parser generico per i file di configurazione
+//! Generic parser for configuration files
 
-// use std::collections::HashMap;
 use std::path::Path;
-
-//use crate::{Config, ConfigError, ConfigFormat, ConfigValue};
 use crate::{Config, ConfigError, ConfigFormat};
 use crate::formats;
 
-/// Parse un file di configurazione in base al suo formato
+/// Parses a configuration file based on its format.
+///
+/// This function reads the content of the specified file and determines its
+/// format. Based on the detected format, it delegates the parsing to the
+/// appropriate format-specific parser.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance where the parsed
+///   data will be stored.
+/// * `path` - A reference to a `Path` representing the file to be parsed.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the file is successfully parsed and the data is loaded into
+///   the `Config` instance.
+/// * `Err(ConfigError)` - If an error occurs during file reading, format
+///   detection, or parsing.
 pub fn parse_file(config: &mut Config, path: &Path) -> Result<(), ConfigError> {
     let content = std::fs::read_to_string(path).map_err(ConfigError::Io)?;
 
-    // Determiniamo il formato dal contenuto
+    // Determine the format from the content
     let format = detect_format(&content);
 
     match format {
@@ -24,9 +37,21 @@ pub fn parse_file(config: &mut Config, path: &Path) -> Result<(), ConfigError> {
     }
 }
 
-/// Rileva il formato dal contenuto
+/// Detects the format of a configuration file from its content.
+///
+/// This function examines the first line of the file content to determine its
+/// format. If the first line starts with `#!config/FORMAT`, the format is
+/// extracted. If no format is specified, the default format is assumed to be INI.
+///
+/// # Arguments
+///
+/// * `content` - A string slice containing the content of the configuration file.
+///
+/// # Returns
+///
+/// The detected configuration format as a `ConfigFormat` enum.
 fn detect_format(content: &str) -> ConfigFormat {
-    // Leggiamo la prima riga
+    // Read the first line
     if let Some(first_line) = content.lines().next() {
         if first_line.starts_with("#!config/") {
             let format_str = first_line.trim_start_matches("#!config/").trim();
@@ -34,6 +59,6 @@ fn detect_format(content: &str) -> ConfigFormat {
         }
     }
 
-    // Per default, assumiamo INI
+    // Default to INI format
     ConfigFormat::Ini
 }

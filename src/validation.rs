@@ -1,5 +1,8 @@
-// src/validation.rs
-//! Modulo per la validazione delle configurazioni
+//! Module for configuration validation
+//!
+//! This module provides structures and functions to define validation schemas,
+//! validate configuration files, and apply default values. It supports various
+//! data types, constraints, and custom validation logic.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -7,19 +10,27 @@ use regex::Regex;
 
 use crate::{Config, ConfigError, ConfigValue};
 
-/// Tipi di dato supportati per la validazione
+/// Supported data types for validation
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueType {
+    /// String type
     String,
+    /// Integer type
     Integer,
+    /// Float type
     Float,
+    /// Boolean type
     Boolean,
+    /// Array type
     Array,
+    /// Table type
     Table,
-    Any, // Accetta qualsiasi tipo
+    /// Accepts any type
+    Any,
 }
 
 impl From<&ConfigValue> for ValueType {
+    /// Converts a `ConfigValue` to its corresponding `ValueType`.
     fn from(value: &ConfigValue) -> Self {
         match value {
             ConfigValue::String(_) => ValueType::String,
@@ -32,27 +43,23 @@ impl From<&ConfigValue> for ValueType {
     }
 }
 
-/// Definizione di un campo nello schema di validazione
+/// Definition of a field in the validation schema
 #[derive(Debug, Clone)]
 pub struct FieldDefinition {
-    /// Tipo di dato atteso
+    /// Expected data type
     pub value_type: ValueType,
-
-    /// Indica se il campo è obbligatorio
+    /// Indicates if the field is required
     pub required: bool,
-
-    /// Valore di default (opzionale)
+    /// Default value (optional)
     pub default_value: Option<ConfigValue>,
-
-    /// Vincoli per il campo
+    /// Constraints for the field
     pub constraints: Vec<FieldConstraint>,
-
-    /// Descrizione del campo (utile per la documentazione)
+    /// Field description (useful for documentation)
     pub description: Option<String>,
 }
 
 impl FieldDefinition {
-    /// Crea una nuova definizione di campo
+    /// Creates a new field definition
     pub fn new(value_type: ValueType) -> Self {
         FieldDefinition {
             value_type,
@@ -63,46 +70,53 @@ impl FieldDefinition {
         }
     }
 
-    /// Imposta il campo come obbligatorio
+    /// Marks the field as required
     pub fn required(mut self) -> Self {
         self.required = true;
         self
     }
 
-    /// Imposta un valore di default
+    /// Sets a default value for the field
     pub fn default(mut self, value: ConfigValue) -> Self {
         self.default_value = Some(value);
         self
     }
 
-    /// Aggiunge un vincolo al campo
+    /// Adds a constraint to the field
     pub fn constraint(mut self, constraint: FieldConstraint) -> Self {
         self.constraints.push(constraint);
         self
     }
 
-    /// Aggiunge una descrizione
+    /// Adds a description to the field
     pub fn description(mut self, desc: &str) -> Self {
         self.description = Some(desc.to_string());
         self
     }
 
-    /// Verifica se un valore rispetta la definizione del campo
+    /// Validates a value against the field definition
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The value to validate.
+    /// * `path` - The path of the field in the configuration.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the value is valid.
+    /// * `Err(ValidationError)` - If the value is invalid.
     pub fn validate(&self, value: Option<&ConfigValue>, path: &str) -> Result<(), ValidationError> {
-        // Se il valore è None ma è richiesto, errore
         if value.is_none() {
             if self.required {
                 return Err(ValidationError::MissingField {
                     path: path.to_string(),
                 });
             }
-            // Se non è richiesto e manca, è ok
             return Ok(());
         }
 
         let value = value.unwrap();
 
-        // Verifichiamo il tipo
         if self.value_type != ValueType::Any {
             let actual_type = ValueType::from(value);
             if actual_type != self.value_type {
@@ -114,7 +128,6 @@ impl FieldDefinition {
             }
         }
 
-        // Verifichiamo i vincoli
         for constraint in &self.constraints {
             constraint.validate(value, path)?;
         }
@@ -123,26 +136,24 @@ impl FieldDefinition {
     }
 }
 
-/// Wrapper per funzioni di validazione personalizzate
-
+/// Wrapper for custom validation functions
 pub struct ValidateFn(Arc<dyn Fn(&ConfigValue) -> Result<(), String> + Send + Sync>);
 
 impl ValidateFn {
-    /// Crea una nuova funzione di validazione
+    /// Creates a new custom validation function
     pub fn new<F>(f: F) -> Self
     where
-        F: Fn(&ConfigValue) -> Result<(), String> + Send + Sync + 'static
+        F: Fn(&ConfigValue) -> Result<(), String> + Send + Sync + 'static,
     {
         ValidateFn(Arc::new(f))
     }
 
-    /// Esegue la validazione su un valore
+    /// Executes the validation function on a value
     pub fn validate(&self, value: &ConfigValue) -> Result<(), String> {
         (self.0)(value)
     }
 }
 
-// Ora l'implementazione di Clone è semplice
 impl Clone for ValidateFn {
     fn clone(&self) -> Self {
         ValidateFn(Arc::clone(&self.0))
@@ -155,61 +166,57 @@ impl std::fmt::Debug for ValidateFn {
     }
 }
 
-/// Vincoli personalizzati per i campi
+/// Custom constraints for fields
 #[derive(Debug, Clone)]
 pub enum FieldConstraint {
-    /// Vincolo per valori stringa
+    /// Constraint for string values
     String {
-        /// Lunghezza minima (se specificata)
+        /// Minimum length (if specified)
         min_length: Option<usize>,
-        /// Lunghezza massima (se specificata)
+        /// Maximum length (if specified)
         max_length: Option<usize>,
-        /// Pattern regex (se specificato)
+        /// Regex pattern (if specified)
         pattern: Option<Regex>,
-        /// Valori consentiti (se specificati)
+        /// Allowed values (if specified)
         allowed_values: Option<Vec<String>>,
     },
-
-    /// Vincolo per valori interi
+    /// Constraint for integer values
     Integer {
-        /// Valore minimo (se specificato)
+        /// Minimum value (if specified)
         min: Option<i64>,
-        /// Valore massimo (se specificato)
+        /// Maximum value (if specified)
         max: Option<i64>,
-        /// Valori consentiti (se specificati)
+        /// Allowed values (if specified)
         allowed_values: Option<Vec<i64>>,
     },
-
-    /// Vincolo per valori float
+    /// Constraint for float values
     Float {
-        /// Valore minimo (se specificato)
+        /// Minimum value (if specified)
         min: Option<f64>,
-        /// Valore massimo (se specificato)
+        /// Maximum value (if specified)
         max: Option<f64>,
     },
-
-    /// Vincolo per array
+    /// Constraint for arrays
     Array {
-        /// Lunghezza minima (se specificata)
+        /// Minimum length (if specified)
         min_length: Option<usize>,
-        /// Lunghezza massima (se specificata)
+        /// Maximum length (if specified)
         max_length: Option<usize>,
-        /// Tipo degli elementi (se specificato)
+        /// Type of elements (if specified)
         item_type: Option<Box<FieldDefinition>>,
     },
-
-    /// Vincolo custom con funzione di validazione
+    /// Custom constraint with a validation function
     Custom {
-        /// Funzione di validazione
-        #[doc(hidden)]  // Nascondiamo questo campo nella documentazione generata
+        /// Validation function
+        #[doc(hidden)]
         validate_fn: ValidateFn,
-        /// Descrizione del vincolo (per messaggi di errore)
+        /// Description of the constraint (for error messages)
         description: String,
     },
 }
 
 impl FieldConstraint {
-    /// Crea un nuovo vincolo per stringhe
+    /// Creates a new string constraint
     pub fn string() -> Self {
         FieldConstraint::String {
             min_length: None,
@@ -219,7 +226,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta la lunghezza minima per un vincolo stringa
+    /// Sets the minimum length for a string constraint
     pub fn min_length(self, min: usize) -> Self {
         match self {
             FieldConstraint::String { max_length, pattern, allowed_values, .. } => {
@@ -241,7 +248,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta la lunghezza massima per un vincolo stringa
+    /// Sets the maximum length for a string constraint
     pub fn max_length(self, max: usize) -> Self {
         match self {
             FieldConstraint::String { min_length, pattern, allowed_values, .. } => {
@@ -263,7 +270,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il pattern regex per un vincolo stringa
+    /// Sets the regex pattern for a string constraint
     pub fn pattern(self, pattern: &str) -> Self {
         match self {
             FieldConstraint::String { min_length, max_length, allowed_values, .. } => {
@@ -278,7 +285,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta i valori consentiti per un vincolo stringa
+    /// Sets the allowed string values for a string constraint
     pub fn allowed_string_values(self, values: Vec<&str>) -> Self {
         match self {
             FieldConstraint::String { min_length, max_length, pattern, .. } => {
@@ -293,7 +300,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Crea un nuovo vincolo per interi
+    /// Creates a new integer constraint
     pub fn integer() -> Self {
         FieldConstraint::Integer {
             min: None,
@@ -302,7 +309,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il valore minimo per un vincolo intero
+    /// Sets the minimum value for an integer constraint
     pub fn min_int(self, min: i64) -> Self {
         match self {
             FieldConstraint::Integer { max, allowed_values, .. } => {
@@ -316,7 +323,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il valore massimo per un vincolo intero
+    /// Sets the maximum value for an integer constraint
     pub fn max_int(self, max: i64) -> Self {
         match self {
             FieldConstraint::Integer { min, allowed_values, .. } => {
@@ -330,7 +337,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta i valori consentiti per un vincolo intero
+    /// Sets the allowed integer values for an integer constraint
     pub fn allowed_int_values(self, values: Vec<i64>) -> Self {
         match self {
             FieldConstraint::Integer { min, max, .. } => {
@@ -344,7 +351,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Crea un nuovo vincolo per float
+    /// Creates a new float constraint
     pub fn float() -> Self {
         FieldConstraint::Float {
             min: None,
@@ -352,7 +359,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il valore minimo per un vincolo float
+    /// Sets the minimum value for a float constraint
     pub fn min_float(self, min: f64) -> Self {
         match self {
             FieldConstraint::Float { max, .. } => {
@@ -365,7 +372,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il valore massimo per un vincolo float
+    /// Sets the maximum value for a float constraint
     pub fn max_float(self, max: f64) -> Self {
         match self {
             FieldConstraint::Float { min, .. } => {
@@ -378,7 +385,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Crea un nuovo vincolo per array
+    /// Creates a new array constraint
     pub fn array() -> Self {
         FieldConstraint::Array {
             min_length: None,
@@ -387,7 +394,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Imposta il tipo degli elementi per un vincolo array
+    /// Sets the type of elements for an array constraint
     pub fn item_type(self, item_def: FieldDefinition) -> Self {
         match self {
             FieldConstraint::Array { min_length, max_length, .. } => {
@@ -401,7 +408,7 @@ impl FieldConstraint {
         }
     }
 
-    /// Crea un nuovo vincolo personalizzato
+    /// Creates a new custom constraint
     pub fn custom<F>(validate_fn: F, description: &str) -> Self
     where
         F: Fn(&ConfigValue) -> Result<(), String> + Send + Sync + 'static,
@@ -412,12 +419,27 @@ impl FieldConstraint {
         }
     }
 
-    /// Valida un valore rispetto al vincolo
+    /// Validates a value against the constraint.
+    ///
+    /// This method checks if a given `ConfigValue` satisfies the conditions defined
+    /// by the `FieldConstraint`. It performs type-specific validation based on the
+    /// constraint type (e.g., string, integer, float, array, or custom).
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A reference to the `ConfigValue` to validate.
+    /// * `path` - A string slice representing the path of the field in the configuration.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the value satisfies the constraint.
+    /// * `Err(ValidationError)` - If the value violates the constraint.
     pub fn validate(&self, value: &ConfigValue, path: &str) -> Result<(), ValidationError> {
         match self {
+            // Validation for string constraints
             FieldConstraint::String { min_length, max_length, pattern, allowed_values } => {
                 if let ConfigValue::String(s) = value {
-                    // Controllo lunghezza minima
+                    // Check minimum length
                     if let Some(min) = min_length {
                         if s.len() < *min {
                             return Err(ValidationError::StringTooShort {
@@ -428,7 +450,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo lunghezza massima
+                    // Check maximum length
                     if let Some(max) = max_length {
                         if s.len() > *max {
                             return Err(ValidationError::StringTooLong {
@@ -439,7 +461,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo pattern regex
+                    // Check regex pattern
                     if let Some(regex) = pattern {
                         if !regex.is_match(s) {
                             return Err(ValidationError::PatternMismatch {
@@ -450,7 +472,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo valori consentiti
+                    // Check allowed values
                     if let Some(allowed) = allowed_values {
                         if !allowed.contains(s) {
                             return Err(ValidationError::InvalidValue {
@@ -463,9 +485,10 @@ impl FieldConstraint {
                 }
             },
 
+            // Validation for integer constraints
             FieldConstraint::Integer { min, max, allowed_values } => {
                 if let ConfigValue::Integer(i) = value {
-                    // Controllo valore minimo
+                    // Check minimum value
                     if let Some(min_val) = min {
                         if *i < *min_val {
                             return Err(ValidationError::IntegerTooSmall {
@@ -476,7 +499,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo valore massimo
+                    // Check maximum value
                     if let Some(max_val) = max {
                         if *i > *max_val {
                             return Err(ValidationError::IntegerTooLarge {
@@ -487,7 +510,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo valori consentiti
+                    // Check allowed values
                     if let Some(allowed) = allowed_values {
                         if !allowed.contains(i) {
                             return Err(ValidationError::InvalidInteger {
@@ -500,9 +523,10 @@ impl FieldConstraint {
                 }
             },
 
+            // Validation for float constraints
             FieldConstraint::Float { min, max } => {
                 if let ConfigValue::Float(f) = value {
-                    // Controllo valore minimo
+                    // Check minimum value
                     if let Some(min_val) = min {
                         if *f < *min_val {
                             return Err(ValidationError::FloatTooSmall {
@@ -513,7 +537,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo valore massimo
+                    // Check maximum value
                     if let Some(max_val) = max {
                         if *f > *max_val {
                             return Err(ValidationError::FloatTooLarge {
@@ -526,9 +550,10 @@ impl FieldConstraint {
                 }
             },
 
+            // Validation for array constraints
             FieldConstraint::Array { min_length, max_length, item_type } => {
                 if let ConfigValue::Array(arr) = value {
-                    // Controllo lunghezza minima
+                    // Check minimum length
                     if let Some(min) = min_length {
                         if arr.len() < *min {
                             return Err(ValidationError::ArrayTooShort {
@@ -539,7 +564,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo lunghezza massima
+                    // Check maximum length
                     if let Some(max) = max_length {
                         if arr.len() > *max {
                             return Err(ValidationError::ArrayTooLong {
@@ -550,7 +575,7 @@ impl FieldConstraint {
                         }
                     }
 
-                    // Controllo tipo degli elementi
+                    // Validate each item in the array
                     if let Some(item_def) = item_type {
                         for (i, item) in arr.iter().enumerate() {
                             let item_path = format!("{}[{}]", path, i);
@@ -560,6 +585,7 @@ impl FieldConstraint {
                 }
             },
 
+            // Validation for custom constraints
             FieldConstraint::Custom { validate_fn, description } => {
                 if let Err(msg) = validate_fn.validate(value) {
                     return Err(ValidationError::CustomConstraintFailed {
@@ -575,24 +601,32 @@ impl FieldConstraint {
     }
 }
 
-/// Schema di validazione per una configurazione
+/// Validation schema for a configuration.
+///
+/// This structure defines the schema for validating configuration files. It includes
+/// definitions for sections, required sections, and rules for handling unknown sections
+/// and keys.
 #[derive(Debug, Clone)]
 pub struct ValidationSchema {
-    /// Definizioni dei campi per ogni sezione
+    /// Field definitions for each section.
     sections: HashMap<String, HashMap<String, FieldDefinition>>,
 
-    /// Sezioni richieste nel file di configurazione
+    /// Required sections in the configuration file.
     required_sections: HashSet<String>,
 
-    /// Indica se sono ammesse sezioni non definite nello schema
+    /// Indicates whether undefined sections are allowed in the schema.
     allow_unknown_sections: bool,
 
-    /// Indica se sono ammesse chiavi non definite nelle sezioni
+    /// Indicates whether undefined keys are allowed in sections.
     allow_unknown_keys: bool,
 }
 
 impl ValidationSchema {
-    /// Crea un nuovo schema di validazione
+    /// Creates a new validation schema.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `ValidationSchema` with default settings.
     pub fn new() -> Self {
         ValidationSchema {
             sections: HashMap::new(),
@@ -602,27 +636,53 @@ impl ValidationSchema {
         }
     }
 
-    /// Definisce una sezione nello schema
+    /// Defines a section in the schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the section to define.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `ValidationSchema` instance for method chaining.
     pub fn section(&mut self, name: &str) -> &mut Self {
         self.sections.insert(name.to_string(), HashMap::new());
         self
     }
 
-    /// Definisce una sezione obbligatoria nello schema
+    /// Defines a required section in the schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the required section.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `ValidationSchema` instance for method chaining.
     pub fn required_section(&mut self, name: &str) -> &mut Self {
         self.section(name);
         self.required_sections.insert(name.to_string());
         self
     }
 
-    /// Definisce un campo in una sezione
+    /// Defines a field in a section.
+    ///
+    /// # Arguments
+    ///
+    /// * `section` - The name of the section where the field is defined.
+    /// * `key` - The name of the field.
+    /// * `definition` - The definition of the field.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `ValidationSchema` instance for method chaining.
     pub fn field(&mut self, section: &str, key: &str, definition: FieldDefinition) -> &mut Self {
-        // Assicuriamoci che la sezione esista
+        // Ensure the section exists.
         if !self.sections.contains_key(section) {
             self.section(section);
         }
 
-        // Aggiungiamo la definizione del campo
+        // Add the field definition.
         if let Some(section_fields) = self.sections.get_mut(section) {
             section_fields.insert(key.to_string(), definition);
         }
@@ -630,23 +690,48 @@ impl ValidationSchema {
         self
     }
 
-    /// Configura se accettare sezioni non definite
+    /// Configures whether undefined sections are allowed.
+    ///
+    /// # Arguments
+    ///
+    /// * `allow` - A boolean indicating whether to allow undefined sections.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `ValidationSchema` instance for method chaining.
     pub fn allow_unknown_sections(&mut self, allow: bool) -> &mut Self {
         self.allow_unknown_sections = allow;
         self
     }
 
-    /// Configura se accettare chiavi non definite nelle sezioni
+    /// Configures whether undefined keys are allowed in sections.
+    ///
+    /// # Arguments
+    ///
+    /// * `allow` - A boolean indicating whether to allow undefined keys.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `ValidationSchema` instance for method chaining.
     pub fn allow_unknown_keys(&mut self, allow: bool) -> &mut Self {
         self.allow_unknown_keys = allow;
         self
     }
 
-    /// Valida una configurazione rispetto allo schema
+    /// Validates a configuration against the schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - A reference to the `Config` instance to validate.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the configuration is valid.
+    /// * `Err(ValidationErrors)` - If validation errors are found.
     pub fn validate(&self, config: &Config) -> Result<(), ValidationErrors> {
         let mut errors = Vec::new();
 
-        // Verifichiamo le sezioni richieste
+        // Check required sections.
         for section in &self.required_sections {
             if !config.values.contains_key(section) {
                 errors.push(ValidationError::MissingSection {
@@ -655,9 +740,9 @@ impl ValidationSchema {
             }
         }
 
-        // Verifichiamo ogni sezione presente nella configurazione
+        // Validate each section in the configuration.
         for (section_name, section_values) in &config.values {
-            // Se la sezione non è definita nello schema
+            // Handle undefined sections.
             if !self.sections.contains_key(section_name) {
                 if !self.allow_unknown_sections {
                     errors.push(ValidationError::UnknownSection {
@@ -667,9 +752,9 @@ impl ValidationSchema {
                 continue;
             }
 
-            // Verifichiamo i campi della sezione
+            // Validate fields in the section.
             if let Some(section_schema) = self.sections.get(section_name) {
-                // Verifichiamo che tutti i campi obbligatori siano presenti
+                // Check for required fields.
                 for (field_name, field_def) in section_schema {
                     let field_path = format!("{}.{}", section_name, field_name);
                     let field_value = section_values.get(field_name);
@@ -679,7 +764,7 @@ impl ValidationSchema {
                     }
                 }
 
-                // Verifichiamo che non ci siano campi non definiti (se necessario)
+                // Check for undefined keys if necessary.
                 if !self.allow_unknown_keys {
                     for key in section_values.keys() {
                         if !section_schema.contains_key(key) {
@@ -700,14 +785,23 @@ impl ValidationSchema {
         }
     }
 
-    /// Applica i valori di default ai campi mancanti
+
+    /// Applies default values to missing fields in the configuration.
+    ///
+    /// This method iterates through the schema's sections and fields, checking if each field
+    /// has a default value and is missing in the provided configuration. If so, it sets the
+    /// default value in the configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - A mutable reference to the `Config` instance where default values will be applied.
     pub fn apply_defaults(&self, config: &mut Config) {
         for (section_name, section_fields) in &self.sections {
             for (field_name, field_def) in section_fields {
-                // Se il campo ha un valore di default e non è presente nella configurazione
+                // If the field has a default value and is not present in the configuration
                 if let Some(default_value) = &field_def.default_value {
                     if !config.values.get(section_name).map_or(false, |s| s.contains_key(field_name)) {
-                        // Aggiungiamo il valore di default
+                        // Add the default value
                         config.set(section_name, field_name, default_value.clone());
                     }
                 }
@@ -716,30 +810,57 @@ impl ValidationSchema {
     }
 }
 
-/// Errori di validazione
+/// Validation errors.
+///
+/// This enum represents the various types of validation errors that can occur
+/// when validating a configuration. Each variant provides specific details
+/// about the error encountered.
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
+    /// Error for a missing section in the configuration.
+    ///
+    /// # Fields
+    /// * `section` - The name of the missing section.
     #[error("Sezione mancante: {section}")]
     MissingSection {
         section: String,
     },
 
+    /// Error for an unknown section in the configuration.
+    ///
+    /// # Fields
+    /// * `section` - The name of the unknown section.
     #[error("Sezione sconosciuta: {section}")]
     UnknownSection {
         section: String,
     },
 
+    /// Error for a missing field in the configuration.
+    ///
+    /// # Fields
+    /// * `path` - The path of the missing field.
     #[error("Campo mancante: {path}")]
     MissingField {
         path: String,
     },
 
+    /// Error for an unknown key in a section.
+    ///
+    /// # Fields
+    /// * `section` - The name of the section containing the unknown key.
+    /// * `key` - The name of the unknown key.
     #[error("Chiave sconosciuta: {section}.{key}")]
     UnknownKey {
         section: String,
         key: String,
     },
 
+    /// Error for a type mismatch in a field.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `expected` - The expected value type.
+    /// * `actual` - The actual value type.
     #[error("Tipo non corrispondente per {path}: atteso {expected:?}, trovato {actual:?}")]
     TypeMismatch {
         path: String,
@@ -747,6 +868,12 @@ pub enum ValidationError {
         actual: ValueType,
     },
 
+    /// Error for a string that is too short.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `min` - The minimum allowed length.
+    /// * `actual` - The actual length of the string.
     #[error("Stringa troppo corta per {path}: lunghezza minima {min}, attuale {actual}")]
     StringTooShort {
         path: String,
@@ -754,6 +881,12 @@ pub enum ValidationError {
         actual: usize,
     },
 
+    /// Error for a string that is too long.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `max` - The maximum allowed length.
+    /// * `actual` - The actual length of the string.
     #[error("Stringa troppo lunga per {path}: lunghezza massima {max}, attuale {actual}")]
     StringTooLong {
         path: String,
@@ -761,6 +894,12 @@ pub enum ValidationError {
         actual: usize,
     },
 
+    /// Error for a string that does not match a regex pattern.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `pattern` - The regex pattern.
+    /// * `value` - The actual string value.
     #[error("Pattern non corrispondente per {path}: pattern {pattern}, valore {value}")]
     PatternMismatch {
         path: String,
@@ -768,6 +907,12 @@ pub enum ValidationError {
         value: String,
     },
 
+    /// Error for an invalid value in a field.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `allowed` - The allowed values.
+    /// * `actual` - The actual value.
     #[error("Valore non valido per {path}: consentiti {allowed}, attuale {actual}")]
     InvalidValue {
         path: String,
@@ -775,6 +920,12 @@ pub enum ValidationError {
         actual: String,
     },
 
+    /// Error for an integer that is too small.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `min` - The minimum allowed value.
+    /// * `actual` - The actual value.
     #[error("Intero troppo piccolo per {path}: minimo {min}, attuale {actual}")]
     IntegerTooSmall {
         path: String,
@@ -782,6 +933,12 @@ pub enum ValidationError {
         actual: i64,
     },
 
+    /// Error for an integer that is too large.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `max` - The maximum allowed value.
+    /// * `actual` - The actual value.
     #[error("Intero troppo grande per {path}: massimo {max}, attuale {actual}")]
     IntegerTooLarge {
         path: String,
@@ -789,6 +946,12 @@ pub enum ValidationError {
         actual: i64,
     },
 
+    /// Error for an invalid integer value.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `allowed` - The allowed values.
+    /// * `actual` - The actual value.
     #[error("Valore intero non valido per {path}: consentiti {allowed}, attuale {actual}")]
     InvalidInteger {
         path: String,
@@ -796,6 +959,12 @@ pub enum ValidationError {
         actual: i64,
     },
 
+    /// Error for a float that is too small.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `min` - The minimum allowed value.
+    /// * `actual` - The actual value.
     #[error("Float troppo piccolo per {path}: minimo {min}, attuale {actual}")]
     FloatTooSmall {
         path: String,
@@ -803,6 +972,12 @@ pub enum ValidationError {
         actual: f64,
     },
 
+    /// Error for a float that is too large.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `max` - The maximum allowed value.
+    /// * `actual` - The actual value.
     #[error("Float troppo grande per {path}: massimo {max}, attuale {actual}")]
     FloatTooLarge {
         path: String,
@@ -810,6 +985,12 @@ pub enum ValidationError {
         actual: f64,
     },
 
+    /// Error for an array that is too short.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `min` - The minimum allowed length.
+    /// * `actual` - The actual length of the array.
     #[error("Array troppo corto per {path}: lunghezza minima {min}, attuale {actual}")]
     ArrayTooShort {
         path: String,
@@ -817,6 +998,12 @@ pub enum ValidationError {
         actual: usize,
     },
 
+    /// Error for an array that is too long.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `max` - The maximum allowed length.
+    /// * `actual` - The actual length of the array.
     #[error("Array troppo lungo per {path}: lunghezza massima {max}, attuale {actual}")]
     ArrayTooLong {
         path: String,
@@ -824,6 +1011,12 @@ pub enum ValidationError {
         actual: usize,
     },
 
+    /// Error for a custom constraint that failed.
+    ///
+    /// # Fields
+    /// * `path` - The path of the field.
+    /// * `description` - A description of the constraint.
+    /// * `message` - The error message from the custom validation function.
     #[error("Vincolo personalizzato fallito per {path}: {description} - {message}")]
     CustomConstraintFailed {
         path: String,
@@ -832,13 +1025,24 @@ pub enum ValidationError {
     },
 }
 
-/// Collezione di errori di validazione
+/// Collection of validation errors.
+///
+/// This structure wraps a vector of `ValidationError` instances and provides
+/// functionality to format them into a single string for easier debugging and
+/// error reporting.
 #[derive(Debug, thiserror::Error)]
-#[error("Errori di validazione della configurazione:\n{}", self.format_errors())]
+#[error("Configuration validation errors:\n{}", self.format_errors())]
 pub struct ValidationErrors(pub Vec<ValidationError>);
 
 impl ValidationErrors {
-    /// Formatta tutti gli errori in un'unica stringa
+    /// Formats all validation errors into a single string.
+    ///
+    /// This method iterates over the list of validation errors, enumerates them,
+    /// and concatenates their string representations into a single formatted string.
+    ///
+    /// # Returns
+    ///
+    /// A string containing all validation errors, each on a new line.
     fn format_errors(&self) -> String {
         self.0.iter()
             .enumerate()
@@ -848,39 +1052,79 @@ impl ValidationErrors {
     }
 }
 
-/// Estensione del trait Config per supportare la validazione
+/// Extension trait for `Config` to support validation.
+///
+/// This trait provides methods to validate a configuration against a schema,
+/// apply default values from the schema, and perform both operations in a single step.
 pub trait ValidationExt {
-    /// Valida la configurazione rispetto a uno schema
+    /// Validates the configuration against a schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - A reference to the `ValidationSchema` to validate against.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the configuration is valid.
+    /// * `Err(ValidationErrors)` - If validation errors are found.
     fn validate(&self, schema: &ValidationSchema) -> Result<(), ValidationErrors>;
 
-    /// Applica i valori di default dello schema alla configurazione
+    /// Applies default values from the schema to the configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - A reference to the `ValidationSchema` containing default values.
     fn apply_defaults(&mut self, schema: &ValidationSchema);
 
-    /// Valida e applica i valori di default in un'unica operazione
+    /// Validates the configuration and applies default values in one operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - A reference to the `ValidationSchema` to validate against and apply defaults from.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the configuration is valid after applying defaults.
+    /// * `Err(ValidationErrors)` - If validation errors are found.
     fn validate_and_apply_defaults(&mut self, schema: &ValidationSchema) -> Result<(), ValidationErrors>;
 }
 
 impl ValidationExt for Config {
+    /// Validates the configuration against a schema.
     fn validate(&self, schema: &ValidationSchema) -> Result<(), ValidationErrors> {
         schema.validate(self)
     }
 
+    /// Applies default values from the schema to the configuration.
     fn apply_defaults(&mut self, schema: &ValidationSchema) {
         schema.apply_defaults(self)
     }
 
+    /// Validates the configuration and applies default values in one operation.
     fn validate_and_apply_defaults(&mut self, schema: &ValidationSchema) -> Result<(), ValidationErrors> {
-        // Prima applichiamo i default
+        // First, apply default values.
         self.apply_defaults(schema);
 
-        // Poi validiamo
+        // Then, validate the configuration.
         self.validate(schema)
     }
 }
 
-// Estendiamo l'enum ConfigError per includere gli errori di validazione
+/// Extends the `ConfigError` enum to include validation errors.
+///
+/// This implementation allows `ValidationErrors` to be converted into a `ConfigError`
+/// for unified error handling.
 impl From<ValidationErrors> for ConfigError {
+    /// Converts `ValidationErrors` into a `ConfigError`.
+    ///
+    /// # Arguments
+    ///
+    /// * `errors` - The `ValidationErrors` to convert.
+    ///
+    /// # Returns
+    ///
+    /// A `ConfigError` containing the formatted validation errors.
     fn from(errors: ValidationErrors) -> Self {
-        ConfigError::Generic(format!("Errori di validazione: {}", errors))
+        ConfigError::Generic(format!("Validation errors: {}", errors))
     }
 }

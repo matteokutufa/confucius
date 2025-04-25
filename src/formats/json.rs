@@ -1,5 +1,4 @@
-// src/formats/json.rs
-//! Implementazione del parser e writer per il formato JSON
+//! Implementation of the parser and writer for the JSON format.
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -11,62 +10,77 @@ use crate::{Config, ConfigError, ConfigValue};
 use crate::include;
 use crate::utils;
 
-/// Parser per file JSON
+/// Parses a JSON file and updates the provided configuration.
+///
+/// This function reads the content of a JSON file, processes its sections, key-value pairs,
+/// and include directives, and updates the given `Config` instance accordingly.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `content` - The content of the JSON file as a string.
+/// * `path` - The path to the JSON file being parsed.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the parsing is successful.
+/// * `Err(ConfigError)` - If an error occurs during parsing.
 pub fn parse_json(config: &mut Config, content: &str, path: &Path) -> Result<(), ConfigError> {
-    // Saltare la prima riga se contiene il formato (#!config/...)
     let content_to_parse = if content.lines().next().unwrap_or("").starts_with("#!config/") {
-        // Prendiamo tutte le righe tranne la prima
         content.lines().skip(1).collect::<Vec<_>>().join("\n")
     } else {
         content.to_string()
     };
 
-    // Parserizziamo il contenuto JSON
     let parsed_json: JsonValue = serde_json::from_str(&content_to_parse)
-        .map_err(|e| ConfigError::ParseError(format!("Errore nel parsing JSON: {}", e)))?;
+        .map_err(|e| ConfigError::ParseError(format!("JSON parsing error: {}", e)))?;
 
-    // Ci aspettiamo che il root sia un oggetto
     if let JsonValue::Object(obj) = parsed_json {
-        // Processiamo le inclusioni se presenti
         if let Some(include_value) = obj.get("include") {
             process_includes(config, include_value, path)?;
         }
 
-        // Convertiamo ogni sezione e valore nel formato di Config
         for (section_name, section_value) in &obj {
-            // Saltiamo la sezione "include" che abbiamo già processato
             if section_name == "include" {
                 continue;
             }
 
             match section_value {
                 JsonValue::Object(section_obj) => {
-                    // È una sezione standard, processiamo ogni coppia chiave-valore
                     for (key, value) in section_obj {
                         let config_value = json_value_to_config_value(value);
                         config.set(section_name, key, config_value);
                     }
                 },
                 _ => {
-                    // È un valore diretto nella sezione default
                     let config_value = json_value_to_config_value(section_value);
                     config.set("default", section_name, config_value);
                 }
             }
         }
     } else {
-        return Err(ConfigError::ParseError("Il file JSON deve avere una struttura ad oggetto nella root".to_string()));
+        return Err(ConfigError::ParseError("The JSON file must have an object structure at the root".to_string()));
     }
 
     Ok(())
 }
 
-/// Converte un valore JSON in un ConfigValue
+/// Converts a JSON value into a `ConfigValue`.
+///
+/// This function maps JSON types (e.g., string, number, boolean, array, object) to
+/// their corresponding `ConfigValue` representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the JSON value to convert.
+///
+/// # Returns
+///
+/// A `ConfigValue` representing the converted value.
 fn json_value_to_config_value(value: &JsonValue) -> ConfigValue {
     match value {
         JsonValue::String(s) => ConfigValue::String(s.clone()),
         JsonValue::Number(n) => {
-            // I numeri JSON possono essere interi o float
             if n.is_i64() {
                 ConfigValue::Integer(n.as_i64().unwrap())
             } else {
@@ -91,28 +105,40 @@ fn json_value_to_config_value(value: &JsonValue) -> ConfigValue {
     }
 }
 
-/// Processa le inclusioni nel file JSON
+/// Processes include directives in a JSON file.
+///
+/// This function handles both single file includes and arrays of include paths,
+/// resolving the paths and parsing the included files.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_value` - The JSON value representing the include directive.
+/// * `base_path` - The base path of the current JSON file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_includes(config: &mut Config, include_value: &JsonValue, base_path: &Path) -> Result<(), ConfigError> {
     match include_value {
         JsonValue::String(include_path) => {
-            // Caso singolo path
             process_single_include(config, include_path, base_path)?;
         },
         JsonValue::Array(includes) => {
-            // Caso array di paths
             for include_item in includes {
                 if let JsonValue::String(include_path) = include_item {
                     process_single_include(config, include_path, base_path)?;
                 } else {
                     return Err(ConfigError::IncludeError(
-                        "Le inclusioni devono essere stringhe".to_string()
+                        "Includes must be strings".to_string()
                     ));
                 }
             }
         },
         _ => {
             return Err(ConfigError::IncludeError(
-                "Il formato dell'inclusione non è valido. Deve essere una stringa o un array di stringhe".to_string()
+                "Invalid include format. Must be a string or an array of strings".to_string()
             ));
         }
     }
@@ -120,20 +146,31 @@ fn process_includes(config: &mut Config, include_value: &JsonValue, base_path: &
     Ok(())
 }
 
-/// Processa una singola inclusione
+/// Processes a single include directive.
+///
+/// This function resolves the path of the included file, determines its format,
+/// and parses it into the configuration.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_path` - The path of the file to include.
+/// * `base_path` - The base path of the current JSON file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_single_include(config: &mut Config, include_path: &str, base_path: &Path) -> Result<(), ConfigError> {
-    // Se l'include è un glob pattern, includiamo tutti i file corrispondenti
     if include_path.contains('*') {
         include::process_glob_include(config, include_path, base_path)?;
     } else {
-        // Altrimenti includiamo un singolo file
         let resolved_path = utils::resolve_path(base_path, include_path);
         if resolved_path.exists() {
             let content = fs::read_to_string(&resolved_path)
-                .map_err(|e| ConfigError::IncludeError(format!("Errore di lettura del file incluso {}: {}",
+                .map_err(|e| ConfigError::IncludeError(format!("Error reading included file {}: {}",
                                                                resolved_path.display(), e)))?;
 
-            // Determiniamo il formato e processiamo il file incluso
             let first_line = content.lines().next().unwrap_or("");
             if first_line.starts_with("#!config/json") {
                 parse_json(config, &content, &resolved_path)?;
@@ -144,7 +181,6 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
             } else if first_line.starts_with("#!config/ini") {
                 crate::formats::ini::parse_ini(config, &content, &resolved_path)?;
             } else {
-                // Se il formato non è specificato, proviamo a capirlo dall'estensione
                 let extension = resolved_path.extension()
                     .and_then(|ext| ext.to_str())
                     .unwrap_or("");
@@ -155,13 +191,12 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
                     "toml" => crate::formats::toml::parse_toml(config, &content, &resolved_path)?,
                     "ini" => crate::formats::ini::parse_ini(config, &content, &resolved_path)?,
                     _ => {
-                        // Se non riusciamo a determinare il formato, assumiamo JSON
                         parse_json(config, &content, &resolved_path)?;
                     }
                 }
             }
         } else {
-            return Err(ConfigError::IncludeError(format!("File incluso non trovato: {}",
+            return Err(ConfigError::IncludeError(format!("Included file not found: {}",
                                                          resolved_path.display())));
         }
     }
@@ -169,16 +204,26 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
     Ok(())
 }
 
-/// Converte un ConfigValue in JsonValue
+/// Converts a `ConfigValue` into a JSON value.
+///
+/// This function maps `ConfigValue` types (e.g., string, integer, float, boolean, array, table)
+/// to their corresponding JSON representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the `ConfigValue` to convert.
+///
+/// # Returns
+///
+/// A `JsonValue` representing the converted value.
 fn config_value_to_json_value(value: &ConfigValue) -> JsonValue {
     match value {
         ConfigValue::String(s) => JsonValue::String(s.clone()),
         ConfigValue::Integer(i) => JsonValue::Number((*i).into()),
         ConfigValue::Float(f) => {
-            // Gestione sicura della conversione float -> JSON Number
             match serde_json::Number::from_f64(*f) {
                 Some(num) => JsonValue::Number(num),
-                None => JsonValue::String(f.to_string()), // Fallback a stringa
+                None => JsonValue::String(f.to_string()),
             }
         },
         ConfigValue::Boolean(b) => JsonValue::Bool(*b),
@@ -198,25 +243,33 @@ fn config_value_to_json_value(value: &ConfigValue) -> JsonValue {
     }
 }
 
-/// Scrive la configurazione in formato JSON
+/// Writes the configuration to a JSON file.
+///
+/// This function serializes the given `Config` instance into the JSON format
+/// and writes it to the specified file path.
+///
+/// # Arguments
+///
+/// * `config` - A reference to the `Config` instance to serialize.
+/// * `path` - The path to the output JSON file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the writing is successful.
+/// * `Err(ConfigError)` - If an error occurs during writing.
 pub fn write_json(config: &Config, path: &Path) -> Result<(), ConfigError> {
     let mut file = File::create(path).map_err(ConfigError::Io)?;
 
-    // Scriviamo l'intestazione del formato
     writeln!(file, "#!config/json").map_err(ConfigError::Io)?;
 
-    // Creiamo una struttura JSON
     let mut root_obj = JsonMap::new();
 
-    // Per ogni sezione
     for (section, values) in &config.values {
         if section == "default" {
-            // Valori nella sezione default vanno nella root
             for (key, value) in values {
                 root_obj.insert(key.clone(), config_value_to_json_value(value));
             }
         } else {
-            // Altre sezioni diventano oggetti annidati
             let mut section_obj = JsonMap::new();
             for (key, value) in values {
                 section_obj.insert(key.clone(), config_value_to_json_value(value));
@@ -228,9 +281,8 @@ pub fn write_json(config: &Config, path: &Path) -> Result<(), ConfigError> {
         }
     }
 
-    // Convertiamo in stringa formattata e scriviamo sul file
     let json_string = serde_json::to_string_pretty(&JsonValue::Object(root_obj))
-        .map_err(|e| ConfigError::Generic(format!("Errore nella serializzazione JSON: {}", e)))?;
+        .map_err(|e| ConfigError::Generic(format!("JSON serialization error: {}", e)))?;
 
     write!(file, "{}", json_string).map_err(ConfigError::Io)?;
 

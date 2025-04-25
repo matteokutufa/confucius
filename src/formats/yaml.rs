@@ -1,5 +1,4 @@
-// src/formats/yaml.rs
-//! Implementazione del parser e writer per il formato YAML
+//! Implementation of the parser and writer for the YAML format.
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -11,39 +10,44 @@ use crate::{Config, ConfigError, ConfigValue};
 use crate::include;
 use crate::utils;
 
-/// Parser per file YAML
+/// Parses a YAML file and updates the provided configuration.
+///
+/// This function reads the content of a YAML file, processes its sections, key-value pairs,
+/// and include directives, and updates the given `Config` instance accordingly.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `content` - The content of the YAML file as a string.
+/// * `path` - The path to the YAML file being parsed.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the parsing is successful.
+/// * `Err(ConfigError)` - If an error occurs during parsing.
 pub fn parse_yaml(config: &mut Config, content: &str, path: &Path) -> Result<(), ConfigError> {
-    // Saltare la prima riga se contiene il formato (#!config/...)
     let content_to_parse = if content.lines().next().unwrap_or("").starts_with("#!config/") {
-        // Prendiamo tutte le righe tranne la prima
         content.lines().skip(1).collect::<Vec<_>>().join("\n")
     } else {
         content.to_string()
     };
 
-    // Parserizziamo il contenuto YAML
     let parsed_yaml: YamlValue = serde_yaml::from_str(&content_to_parse)
         .map_err(|e| ConfigError::ParseError(format!("Errore nel parsing YAML: {}", e)))?;
 
-    // Ci aspettiamo che il root sia un mapping (oggetto)
     if let YamlValue::Mapping(mapping) = parsed_yaml {
-        // Processiamo le inclusioni se presenti
         if let Some(include_value) = mapping.get(&YamlValue::String("include".to_string())) {
             process_includes(config, include_value, path)?;
         }
 
-        // Convertiamo ogni sezione e valore nel formato di Config
         for (key_value, value) in &mapping {
-            // Convertiamo la chiave in stringa
             if let YamlValue::String(section_name) = key_value {
-                // Saltiamo la sezione "include" che abbiamo già processato
                 if section_name == "include" {
                     continue;
                 }
 
                 match value {
                     YamlValue::Mapping(section_mapping) => {
-                        // È una sezione standard, processiamo ogni coppia chiave-valore
                         for (sub_key_value, sub_value) in section_mapping {
                             if let YamlValue::String(key) = sub_key_value {
                                 let config_value = yaml_value_to_config_value(sub_value);
@@ -52,7 +56,6 @@ pub fn parse_yaml(config: &mut Config, content: &str, path: &Path) -> Result<(),
                         }
                     },
                     _ => {
-                        // È un valore diretto nella sezione default
                         let config_value = yaml_value_to_config_value(value);
                         config.set("default", section_name, config_value);
                     }
@@ -66,7 +69,18 @@ pub fn parse_yaml(config: &mut Config, content: &str, path: &Path) -> Result<(),
     Ok(())
 }
 
-/// Converte un valore YAML in un ConfigValue
+/// Converts a YAML value into a `ConfigValue`.
+///
+/// This function maps YAML types (e.g., string, number, boolean, array, mapping) to
+/// their corresponding `ConfigValue` representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the YAML value to convert.
+///
+/// # Returns
+///
+/// A `ConfigValue` representing the converted value.
 fn yaml_value_to_config_value(value: &YamlValue) -> ConfigValue {
     match value {
         YamlValue::String(s) => ConfigValue::String(s.clone()),
@@ -76,7 +90,6 @@ fn yaml_value_to_config_value(value: &YamlValue) -> ConfigValue {
             } else if let Some(f) = n.as_f64() {
                 ConfigValue::Float(f)
             } else {
-                // Fallback per altri tipi numerici
                 ConfigValue::String(n.to_string())
             }
         },
@@ -93,7 +106,6 @@ fn yaml_value_to_config_value(value: &YamlValue) -> ConfigValue {
                 if let YamlValue::String(key) = k {
                     config_map.insert(key.clone(), yaml_value_to_config_value(v));
                 } else {
-                    // Convertiamo chiavi non-stringa in stringa
                     config_map.insert(k.as_str().unwrap().to_string(), yaml_value_to_config_value(v));
                 }
             }
@@ -104,15 +116,27 @@ fn yaml_value_to_config_value(value: &YamlValue) -> ConfigValue {
     }
 }
 
-/// Processa le inclusioni nel file YAML
+/// Processes include directives in a YAML file.
+///
+/// This function handles both single file includes and arrays of include paths,
+/// resolving the paths and parsing the included files.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_value` - The YAML value representing the include directive.
+/// * `base_path` - The base path of the current YAML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_includes(config: &mut Config, include_value: &YamlValue, base_path: &Path) -> Result<(), ConfigError> {
     match include_value {
         YamlValue::String(include_path) => {
-            // Caso singolo path
             process_single_include(config, include_path, base_path)?;
         },
         YamlValue::Sequence(includes) => {
-            // Caso array di paths
             for include_item in includes {
                 if let YamlValue::String(include_path) = include_item {
                     process_single_include(config, include_path, base_path)?;
@@ -133,20 +157,31 @@ fn process_includes(config: &mut Config, include_value: &YamlValue, base_path: &
     Ok(())
 }
 
-/// Processa una singola inclusione
+/// Processes a single include directive.
+///
+/// This function resolves the path of the included file, determines its format,
+/// and parses it into the configuration.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_path` - The path of the file to include.
+/// * `base_path` - The base path of the current YAML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_single_include(config: &mut Config, include_path: &str, base_path: &Path) -> Result<(), ConfigError> {
-    // Se l'include è un glob pattern, includiamo tutti i file corrispondenti
     if include_path.contains('*') {
         include::process_glob_include(config, include_path, base_path)?;
     } else {
-        // Altrimenti includiamo un singolo file
         let resolved_path = utils::resolve_path(base_path, include_path);
         if resolved_path.exists() {
             let content = fs::read_to_string(&resolved_path)
                 .map_err(|e| ConfigError::IncludeError(format!("Errore di lettura del file incluso {}: {}",
                                                                resolved_path.display(), e)))?;
 
-            // Determiniamo il formato e processiamo il file incluso
             let first_line = content.lines().next().unwrap_or("");
             if first_line.starts_with("#!config/yaml") {
                 parse_yaml(config, &content, &resolved_path)?;
@@ -155,7 +190,6 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
             } else if first_line.starts_with("#!config/ini") {
                 crate::formats::ini::parse_ini(config, &content, &resolved_path)?;
             } else {
-                // Se il formato non è specificato, proviamo a capirlo dall'estensione
                 let extension = resolved_path.extension()
                     .and_then(|ext| ext.to_str())
                     .unwrap_or("");
@@ -165,7 +199,6 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
                     "toml" => crate::formats::toml::parse_toml(config, &content, &resolved_path)?,
                     "ini" => crate::formats::ini::parse_ini(config, &content, &resolved_path)?,
                     _ => {
-                        // Se non riusciamo a determinare il formato, assumiamo YAML
                         parse_yaml(config, &content, &resolved_path)?;
                     }
                 }
@@ -179,16 +212,25 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
     Ok(())
 }
 
-/// Converte un ConfigValue in YamlValue
+/// Converts a `ConfigValue` into a YAML value.
+///
+/// This function maps `ConfigValue` types (e.g., string, integer, float, boolean, array, table)
+/// to their corresponding YAML representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the `ConfigValue` to convert.
+///
+/// # Returns
+///
+/// A `YamlValue` representing the converted value.
 fn config_value_to_yaml_value(value: &ConfigValue) -> YamlValue {
     match value {
         ConfigValue::String(s) => YamlValue::String(s.clone()),
         ConfigValue::Integer(i) => {
-            // Convertiamo l'intero in un numero YAML
             serde_yaml::to_value(i).unwrap_or(YamlValue::Null)
         },
         ConfigValue::Float(f) => {
-            // Convertiamo il float in un numero YAML
             serde_yaml::to_value(f).unwrap_or(YamlValue::Null)
         },
         ConfigValue::Boolean(b) => YamlValue::Bool(*b),
@@ -211,20 +253,29 @@ fn config_value_to_yaml_value(value: &ConfigValue) -> YamlValue {
     }
 }
 
-/// Scrive la configurazione in formato YAML
+/// Writes the configuration to a YAML file.
+///
+/// This function serializes the given `Config` instance into the YAML format
+/// and writes it to the specified file path.
+///
+/// # Arguments
+///
+/// * `config` - A reference to the `Config` instance to serialize.
+/// * `path` - The path to the output YAML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the writing is successful.
+/// * `Err(ConfigError)` - If an error occurs during writing.
 pub fn write_yaml(config: &Config, path: &Path) -> Result<(), ConfigError> {
     let mut file = File::create(path).map_err(ConfigError::Io)?;
 
-    // Scriviamo l'intestazione del formato
     writeln!(file, "#!config/yaml").map_err(ConfigError::Io)?;
 
-    // Creiamo una struttura YAML
     let mut root_mapping = YamlMapping::new();
 
-    // Per ogni sezione
     for (section, values) in &config.values {
         if section == "default" {
-            // Valori nella sezione default vanno nella root
             for (key, value) in values {
                 root_mapping.insert(
                     YamlValue::String(key.clone()),
@@ -232,7 +283,6 @@ pub fn write_yaml(config: &Config, path: &Path) -> Result<(), ConfigError> {
                 );
             }
         } else {
-            // Altre sezioni diventano oggetti annidati
             let mut section_mapping = YamlMapping::new();
             for (key, value) in values {
                 section_mapping.insert(
@@ -250,7 +300,6 @@ pub fn write_yaml(config: &Config, path: &Path) -> Result<(), ConfigError> {
         }
     }
 
-    // Convertiamo in stringa e scriviamo sul file
     let yaml_string = serde_yaml::to_string(&YamlValue::Mapping(root_mapping))
         .map_err(|e| ConfigError::Generic(format!("Errore nella serializzazione YAML: {}", e)))?;
 

@@ -1,5 +1,4 @@
-// src/formats/toml.rs
-//! Implementazione del parser e writer per il formato TOML
+//! Implementation of the parser and writer for the TOML format.
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -11,42 +10,48 @@ use crate::{Config, ConfigError, ConfigValue};
 use crate::include;
 use crate::utils;
 
-/// Parser per file TOML
+/// Parses a TOML file and updates the provided configuration.
+///
+/// This function reads the content of a TOML file, processes its sections, key-value pairs,
+/// and include directives, and updates the given `Config` instance accordingly.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `content` - The content of the TOML file as a string.
+/// * `path` - The path to the TOML file being parsed.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the parsing is successful.
+/// * `Err(ConfigError)` - If an error occurs during parsing.
 pub fn parse_toml(config: &mut Config, content: &str, path: &Path) -> Result<(), ConfigError> {
-    // Saltare la prima riga se contiene il formato (#!config/...)
     let content_to_parse = if content.lines().next().unwrap_or("").starts_with("#!config/") {
-        // Prendiamo tutte le righe tranne la prima
         content.lines().skip(1).collect::<Vec<_>>().join("\n")
     } else {
         content.to_string()
     };
 
-    // Parserizziamo il contenuto TOML
     let parsed_toml: TomlTable = content_to_parse.parse()
         .map_err(|e| ConfigError::ParseError(format!("Errore nel parsing TOML: {}", e)))?;
 
-    // Processiamo le inclusioni se presenti
     if let Some(include_value) = parsed_toml.get("include") {
         process_includes(config, include_value, path)?;
     }
 
-    // Convertiamo ogni sezione e valore nel formato di Config
     for (section_name, section_value) in &parsed_toml {
-        // Saltiamo la sezione "include" che abbiamo già processato
         if section_name == "include" {
             continue;
         }
 
         match section_value {
             TomlValue::Table(table) => {
-                // È una sezione standard, processiamo ogni coppia chiave-valore
                 for (key, value) in table {
                     let config_value = toml_value_to_config_value(value);
                     config.set(section_name, key, config_value);
                 }
             },
             _ => {
-                // È un valore nella sezione root (default)
                 let config_value = toml_value_to_config_value(section_value);
                 config.set("default", section_name, config_value);
             }
@@ -56,7 +61,18 @@ pub fn parse_toml(config: &mut Config, content: &str, path: &Path) -> Result<(),
     Ok(())
 }
 
-/// Converte un valore TOML in un ConfigValue
+/// Converts a TOML value into a `ConfigValue`.
+///
+/// This function maps TOML types (e.g., string, integer, float, boolean, array, table)
+/// to their corresponding `ConfigValue` representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the TOML value to convert.
+///
+/// # Returns
+///
+/// A `ConfigValue` representing the converted value.
 fn toml_value_to_config_value(value: &TomlValue) -> ConfigValue {
     match value {
         TomlValue::String(s) => ConfigValue::String(s.clone()),
@@ -76,20 +92,31 @@ fn toml_value_to_config_value(value: &TomlValue) -> ConfigValue {
             }
             ConfigValue::Table(map)
         },
-        // Trattiamo Datetime come stringa
         TomlValue::Datetime(dt) => ConfigValue::String(dt.to_string()),
     }
 }
 
-/// Processa le inclusioni nel file TOML
+/// Processes include directives in a TOML file.
+///
+/// This function handles both single file includes and arrays of include paths,
+/// resolving the paths and parsing the included files.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_value` - The TOML value representing the include directive.
+/// * `base_path` - The base path of the current TOML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_includes(config: &mut Config, include_value: &TomlValue, base_path: &Path) -> Result<(), ConfigError> {
     match include_value {
         TomlValue::String(include_path) => {
-            // Caso singolo path
             process_single_include(config, include_path, base_path)?;
         },
         TomlValue::Array(includes) => {
-            // Caso array di paths
             for include_item in includes {
                 if let TomlValue::String(include_path) = include_item {
                     process_single_include(config, include_path, base_path)?;
@@ -110,30 +137,39 @@ fn process_includes(config: &mut Config, include_value: &TomlValue, base_path: &
     Ok(())
 }
 
-/// Processa una singola inclusione
+/// Processes a single include directive.
+///
+/// This function resolves the path of the included file, determines its format,
+/// and parses it into the configuration.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the `Config` instance to update.
+/// * `include_path` - The path of the file to include.
+/// * `base_path` - The base path of the current TOML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the include is processed successfully.
+/// * `Err(ConfigError)` - If an error occurs during processing.
 fn process_single_include(config: &mut Config, include_path: &str, base_path: &Path) -> Result<(), ConfigError> {
-    // Se l'include è un glob pattern, includiamo tutti i file corrispondenti
     if include_path.contains('*') {
         include::process_glob_include(config, include_path, base_path)?;
     } else {
-        // Altrimenti includiamo un singolo file
         let resolved_path = utils::resolve_path(base_path, include_path);
         if resolved_path.exists() {
             let content = fs::read_to_string(&resolved_path)
                 .map_err(|e| ConfigError::IncludeError(format!("Errore di lettura del file incluso {}: {}",
                                                                resolved_path.display(), e)))?;
 
-            // Determiniamo il formato e processiamo il file incluso
             let first_line = content.lines().next().unwrap_or("");
             if first_line.starts_with("#!config/toml") {
                 parse_toml(config, &content, &resolved_path)?;
             } else if first_line.starts_with("#!config/ini") {
                 crate::formats::ini::parse_ini(config, &content, &resolved_path)?;
             } else if first_line.starts_with("#!config/yaml") {
-                // Quando aggiungeremo il supporto YAML
                 return Err(ConfigError::UnsupportedFormat("YAML".to_string()));
             } else {
-                // Se il formato non è specificato, proviamo a capirlo dall'estensione
                 let extension = resolved_path.extension()
                     .and_then(|ext| ext.to_str())
                     .unwrap_or("");
@@ -143,7 +179,6 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
                     "ini" => crate::formats::ini::parse_ini(config, &content, &resolved_path)?,
                     "yaml" | "yml" => return Err(ConfigError::UnsupportedFormat("YAML".to_string())),
                     _ => {
-                        // Se non riusciamo a determinare il formato, assumiamo TOML
                         parse_toml(config, &content, &resolved_path)?;
                     }
                 }
@@ -157,7 +192,18 @@ fn process_single_include(config: &mut Config, include_path: &str, base_path: &P
     Ok(())
 }
 
-/// Converte un ConfigValue in TomlValue
+/// Converts a `ConfigValue` into a TOML value.
+///
+/// This function maps `ConfigValue` types (e.g., string, integer, float, boolean, array, table)
+/// to their corresponding TOML representation.
+///
+/// # Arguments
+///
+/// * `value` - A reference to the `ConfigValue` to convert.
+///
+/// # Returns
+///
+/// A `TomlValue` representing the converted value.
 fn config_value_to_toml_value(value: &ConfigValue) -> TomlValue {
     match value {
         ConfigValue::String(s) => TomlValue::String(s.clone()),
@@ -180,25 +226,33 @@ fn config_value_to_toml_value(value: &ConfigValue) -> TomlValue {
     }
 }
 
-/// Scrive la configurazione in formato TOML
+/// Writes the configuration to a TOML file.
+///
+/// This function serializes the given `Config` instance into the TOML format
+/// and writes it to the specified file path.
+///
+/// # Arguments
+///
+/// * `config` - A reference to the `Config` instance to serialize.
+/// * `path` - The path to the output TOML file.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the writing is successful.
+/// * `Err(ConfigError)` - If an error occurs during writing.
 pub fn write_toml(config: &Config, path: &Path) -> Result<(), ConfigError> {
     let mut file = File::create(path).map_err(ConfigError::Io)?;
 
-    // Scriviamo l'intestazione del formato
     writeln!(file, "#!config/toml").map_err(ConfigError::Io)?;
 
-    // Creiamo una struttura TOML
     let mut root_table = TomlTable::new();
 
-    // Per ogni sezione
     for (section, values) in &config.values {
         if section == "default" {
-            // Valori nella sezione default vanno nella root
             for (key, value) in values {
                 root_table.insert(key.clone(), config_value_to_toml_value(value));
             }
         } else {
-            // Altre sezioni diventano tabelle
             let mut section_table = TomlTable::new();
             for (key, value) in values {
                 section_table.insert(key.clone(), config_value_to_toml_value(value));
@@ -210,7 +264,6 @@ pub fn write_toml(config: &Config, path: &Path) -> Result<(), ConfigError> {
         }
     }
 
-    // Convertiamo in stringa e scriviamo sul file
     let toml_string = toml::to_string_pretty(&root_table)
         .map_err(|e| ConfigError::Generic(format!("Errore nella serializzazione TOML: {}", e)))?;
 
