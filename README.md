@@ -20,6 +20,7 @@ Just as Confucius provided wisdom for life, Confucius provides wisdom for config
 [![Rust Version](https://img.shields.io/badge/rust-1.50+-blue.svg)](https://www.rust-lang.org/)
 [![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/confucius.svg)](LICENSE)
 
+
 ## Features
 
 `confucius` is a library for managing configuration files with support for:
