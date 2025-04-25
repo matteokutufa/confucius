@@ -1,21 +1,23 @@
-// Esempio di utilizzo con il formato JSON
-fn example_json() -> Result<(), Box<dyn std::error::Error>> {
-    use confucius::{Config, ConfigValue, ConfigFormat};
-    use std::path::Path;
-    use std::collections::HashMap;
+// examples/json_example.rs
+//! Example of using JSON format with the confucius library
 
-    // Creiamo una configurazione per un'app chiamata "api_server"
+use confucius::{Config, ConfigValue, ConfigFormat};
+use std::path::Path;
+use std::collections::HashMap;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a configuration for an app called "api_server"
     let mut config = Config::new("api_server");
 
-    // Impostiamo esplicitamente il formato JSON
+    // Explicitly set the format to JSON
     config.set_format(ConfigFormat::Json);
 
-    // Aggiungiamo la configurazione di base
+    // Add basic configuration
     config.set("api", "version", ConfigValue::String("2.0.0".to_string()));
     config.set("api", "base_url", ConfigValue::String("/api/v2".to_string()));
     config.set("api", "enable_cors", ConfigValue::Boolean(true));
 
-    // Configurazione più complessa: array di endpoint
+    // More complex configuration: array of endpoints
     let mut endpoints = Vec::new();
 
     // Endpoint 1: /users
@@ -24,7 +26,7 @@ fn example_json() -> Result<(), Box<dyn std::error::Error>> {
     endpoint1.insert("method".to_string(), ConfigValue::String("GET".to_string()));
     endpoint1.insert("auth_required".to_string(), ConfigValue::Boolean(true));
 
-    // Parametri dell'endpoint
+    // Endpoint parameters
     let mut params1 = HashMap::new();
     params1.insert("limit".to_string(), ConfigValue::Integer(100));
     params1.insert("offset".to_string(), ConfigValue::Integer(0));
@@ -46,10 +48,10 @@ fn example_json() -> Result<(), Box<dyn std::error::Error>> {
 
     endpoints.push(ConfigValue::Table(endpoint2));
 
-    // Aggiungiamo gli endpoint alla configurazione
+    // Add endpoints to configuration
     config.set("api", "endpoints", ConfigValue::Array(endpoints));
 
-    // Configurazione del database
+    // Database configuration
     config.set("database", "host", ConfigValue::String("localhost".to_string()));
     config.set("database", "port", ConfigValue::Integer(5432));
     config.set("database", "name", ConfigValue::String("api_db".to_string()));
@@ -57,12 +59,12 @@ fn example_json() -> Result<(), Box<dyn std::error::Error>> {
     config.set("database", "password", ConfigValue::String("secret123".to_string()));
     config.set("database", "max_connections", ConfigValue::Integer(100));
 
-    // Configurazione di logging
+    // Logging configuration
     config.set("logging", "level", ConfigValue::String("info".to_string()));
     config.set("logging", "file", ConfigValue::String("/var/log/api_server.log".to_string()));
     config.set("logging", "stdout", ConfigValue::Boolean(true));
 
-    // Array di livelli di logging
+    // Array of log levels
     let log_levels = vec![
         ConfigValue::String("info".to_string()),
         ConfigValue::String("warn".to_string()),
@@ -70,19 +72,40 @@ fn example_json() -> Result<(), Box<dyn std::error::Error>> {
     ];
     config.set("logging", "enabled_levels", ConfigValue::Array(log_levels));
 
-    // Salviamo la configurazione
-    config.save_to_file(Path::new("api_server.json"))?;
+    // Security settings
+    let mut security = HashMap::new();
+    security.insert("jwt_secret".to_string(), ConfigValue::String("your-secret-key".to_string()));
+    security.insert("token_expiration".to_string(), ConfigValue::Integer(3600));
 
-    println!("Configurazione JSON salvata in api_server.json");
+    let mut cors = HashMap::new();
+    cors.insert("allowed_origins".to_string(), ConfigValue::Array(vec![
+        ConfigValue::String("https://example.com".to_string()),
+        ConfigValue::String("https://api.example.com".to_string()),
+    ]));
+    cors.insert("allowed_methods".to_string(), ConfigValue::Array(vec![
+        ConfigValue::String("GET".to_string()),
+        ConfigValue::String("POST".to_string()),
+        ConfigValue::String("PUT".to_string()),
+        ConfigValue::String("DELETE".to_string()),
+    ]));
+    security.insert("cors".to_string(), ConfigValue::Table(cors));
 
-    // Ora ricarichiamo la configurazione
+    config.set("security", "settings", ConfigValue::Table(security));
+
+    // Save the configuration
+    let json_path = Path::new("api_server.json");
+    config.save_to_file(json_path)?;
+    println!("JSON configuration saved to api_server.json");
+
+    // Now reload the configuration
     let mut loaded_config = Config::new("api_server");
-    loaded_config.load_from_file(Path::new("api_server.json"))?;
+    loaded_config.load_from_file(json_path)?;
+    println!("Configuration successfully loaded from JSON file");
 
-    // Verifichiamo qualche valore
+    // Verify some values
     if let Some(base_url) = loaded_config.get("api", "base_url") {
         if let Some(url) = base_url.as_string() {
-            println!("API Base URL: {}", url);
+            println!("\nAPI Base URL: {}", url);
         }
     }
 
@@ -92,25 +115,67 @@ fn example_json() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Verifichiamo se abbiamo potuto leggere l'array di endpoint
+    // Check if we can read the array of endpoints
     if let Some(endpoints) = loaded_config.get("api", "endpoints") {
         if let ConfigValue::Array(endpoints_arr) = endpoints {
-            println!("Trovati {} endpoint", endpoints_arr.len());
+            println!("\nFound {} endpoints", endpoints_arr.len());
 
-            // Estraiamo informazioni dal primo endpoint
+            // Extract information from the first endpoint
             if let Some(ConfigValue::Table(first_endpoint)) = endpoints_arr.first() {
                 if let Some(ConfigValue::String(path)) = first_endpoint.get("path") {
-                    println!("Primo endpoint: {}", path);
+                    println!("First endpoint path: {}", path);
+                }
+
+                if let Some(ConfigValue::Boolean(auth_required)) = first_endpoint.get("auth_required") {
+                    println!("Authentication required: {}", auth_required);
+                }
+
+                // Check if there are default parameters
+                if let Some(ConfigValue::Table(params)) = first_endpoint.get("default_params") {
+                    println!("Default parameters:");
+                    for (key, value) in params {
+                        println!("  {} = {}", key, value);
+                    }
                 }
             }
         }
     }
 
-    Ok(())
-}
+    // Check security settings
+    if let Some(ConfigValue::Table(security_settings)) = loaded_config.get("security", "settings") {
+        println!("\nSecurity settings:");
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Esempio di utilizzo del formato JSON:");
-    example_json()?;
+        if let Some(ConfigValue::String(jwt_secret)) = security_settings.get("jwt_secret") {
+            println!("  JWT Secret: {}", jwt_secret);
+        }
+
+        if let Some(ConfigValue::Integer(expiration)) = security_settings.get("token_expiration") {
+            println!("  Token expiration: {} seconds", expiration);
+        }
+
+        // Check CORS settings
+        if let Some(ConfigValue::Table(cors_settings)) = security_settings.get("cors") {
+            println!("  CORS configuration:");
+
+            if let Some(ConfigValue::Array(origins)) = cors_settings.get("allowed_origins") {
+                println!("    Allowed origins:");
+                for (i, origin) in origins.iter().enumerate() {
+                    if let Some(origin_str) = origin.as_string() {
+                        println!("      {}. {}", i + 1, origin_str);
+                    }
+                }
+            }
+
+            if let Some(ConfigValue::Array(methods)) = cors_settings.get("allowed_methods") {
+                println!("    Allowed methods:");
+                for (i, method) in methods.iter().enumerate() {
+                    if let Some(method_str) = method.as_string() {
+                        println!("      {}. {}", i + 1, method_str);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
 }

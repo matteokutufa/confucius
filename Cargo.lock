@@ -107,7 +107,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "confucius"
-version = "0.1.6-beta"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "glob",

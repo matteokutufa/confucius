@@ -468,7 +468,7 @@ impl fmt::Display for ConfigValue {
 /// * `values` - A map of configuration values organized by section and key.
 /// * `format` - The format of the configuration file (e.g., INI, TOML, YAML, JSON).
 /// * `config_file_path` - The path to the loaded configuration file, if any.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     /// The name of the application (e.g., "galatea").
     app_name: String,

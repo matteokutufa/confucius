@@ -1,6 +1,6 @@
 [package]
 name = "confucius"
-version = "0.1.6-beta"
+version = "0.2.0"
 edition = "2024"
 authors = ["Matteo Kutufa <mk@mitocode.eu>"]
 description = "A Rust library that simplifies configuration file management for applications."

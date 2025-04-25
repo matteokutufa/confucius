@@ -1,5 +1,5 @@
 // examples/basic_usage.rs
-//! Esempio di utilizzo base della libreria confucius
+//! Basic usage example for the confucius library
 
 use std::env;
 use std::fs;
@@ -7,25 +7,25 @@ use std::path::Path;
 use confucius::{Config, ConfigValue};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Crea una configurazione per un'app chiamata "myapp"
+    // Create a configuration for an app called "myapp"
     let mut config = Config::new("myapp");
 
-    // Creiamo un file di configurazione di esempio
+    // Create an example configuration file
     create_example_config()?;
 
-    // Carica la configurazione dai percorsi predefiniti
+    // Load configuration from default paths
     match config.load() {
-        Ok(_) => println!("Configurazione caricata con successo!"),
+        Ok(_) => println!("Configuration loaded successfully!"),
         Err(e) => {
-            println!("Errore nel caricamento della configurazione: {}", e);
-            println!("Utilizziamo un file specifico...");
+            println!("Error loading configuration: {}", e);
+            println!("Trying to load from a specific file...");
 
-            // Proviamo a caricare dal file di esempio che abbiamo creato
+            // Try to load from the example file we created
             config.load_from_file(Path::new("myapp.conf"))?;
         }
     }
 
-    // Leggiamo alcuni valori
+    // Read some values
     if let Some(server) = config.get("server", "hostname") {
         if let Some(hostname) = server.as_string() {
             println!("Server hostname: {}", hostname);
@@ -44,26 +44,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Modifichiamo alcuni valori
+    // Modify some values
     config.set("app", "version", ConfigValue::String("1.0.1".to_string()));
     config.set("server", "timeout", ConfigValue::Integer(30));
 
-    // Salviamo la configurazione
+    // Save the configuration
     config.save_to_file(Path::new("myapp_updated.conf"))?;
-    println!("Configurazione salvata in myapp_updated.conf");
+    println!("Configuration saved to myapp_updated.conf");
 
     Ok(())
 }
 
-/// Crea un file di configurazione di esempio
+/// Creates example configuration files
 fn create_example_config() -> Result<(), Box<dyn std::error::Error>> {
     let config_content = r#"#!config/ini
-# Questo è un file di configurazione di esempio per myapp
+# This is an example configuration file for myapp
 
 [app]
 name = "My Application"
 version = "1.0.0"
-debug = true # Abilita il debug
+debug = true # Enable debugging
 
 [server]
 hostname = "localhost"
@@ -74,12 +74,12 @@ max_connections = 100
 url = "postgresql://user:password@localhost/mydb"
 pool_size = 10
 
-# Questo è un esempio di include
+# This is an include example
 include=myapp_extra.conf
 "#;
 
     let extra_config = r#"#!config/ini
-# Configurazione extra per myapp
+# Extra configuration for myapp
 
 [logging]
 level = "info"
@@ -90,11 +90,11 @@ enable_ssl = true
 cert_file = "/etc/ssl/certs/myapp.pem"
 "#;
 
-    // Scriviamo i file
+    // Write the files
     fs::write("myapp.conf", config_content)?;
     fs::write("myapp_extra.conf", extra_config)?;
 
-    println!("File di configurazione di esempio creati.");
+    println!("Example configuration files created.");
 
     Ok(())
 }
